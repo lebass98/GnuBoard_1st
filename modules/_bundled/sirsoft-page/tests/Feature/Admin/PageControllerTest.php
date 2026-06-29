@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Search\Engines\DatabaseFulltextEngine;
 use Laravel\Scout\EngineManager;
 use Modules\Sirsoft\Page\Models\Page;
+use Modules\Sirsoft\Page\Models\PageAttachment;
 use Modules\Sirsoft\Page\Models\PageVersion;
 use Modules\Sirsoft\Page\Tests\FeatureTestCase;
 
@@ -383,7 +384,7 @@ class PageControllerTest extends FeatureTestCase
 
         $response->assertStatus(200);
         $this->assertDatabaseHas('pages', ['id' => $page->id, 'slug' => 'test-slug-new']);
-        $this->assertDatabaseMissing('pages', ['slug' => 'test-slug-old', 'deleted_at' => null]);
+        $this->assertDatabaseMissing('pages', ['slug' => 'test-slug-old']);
     }
 
     /**
@@ -593,7 +594,7 @@ class PageControllerTest extends FeatureTestCase
     // ─── 삭제 (destroy) ────────────────────────────────
 
     /**
-     * 페이지를 삭제(소프트 삭제)할 수 있는지 확인
+     * 페이지를 삭제(물리 삭제)할 수 있는지 확인
      */
     public function test_admin_can_delete_page(): void
     {
@@ -609,8 +610,8 @@ class PageControllerTest extends FeatureTestCase
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        // 소프트 삭제 확인
-        $this->assertSoftDeleted('pages', ['id' => $page->id]);
+        // 물리 삭제 확인 (soft delete 미사용 — 행이 실제로 제거됨)
+        $this->assertDatabaseMissing('pages', ['id' => $page->id]);
     }
 
     /**
@@ -622,6 +623,117 @@ class PageControllerTest extends FeatureTestCase
             ->deleteJson('/api/modules/sirsoft-page/admin/pages/99999');
 
         $response->assertStatus(404);
+    }
+
+    /**
+     * 페이지 삭제 후 동일 슬러그로 재생성할 수 있는지 확인 (#424-20 회귀)
+     *
+     * soft delete 시절에는 삭제된 페이지의 slug 가 잔존하여 동일 slug 재생성 시
+     * Rule::unique 가 422 를 반환했다. hard delete 전환으로 재생성이 성공해야 한다.
+     */
+    public function test_can_recreate_page_with_same_slug_after_delete(): void
+    {
+        $slug = 'test-reuse-slug';
+
+        // 1) 최초 생성
+        $first = $this->actingAs($this->adminUser)
+            ->postJson('/api/modules/sirsoft-page/admin/pages', [
+                'slug' => $slug,
+                'title' => ['ko' => '원본 페이지', 'en' => 'Original'],
+                'content' => ['ko' => '본문', 'en' => 'Content'],
+                'content_mode' => 'html',
+            ]);
+        $first->assertStatus(201);
+        $firstId = $first->json('data.id');
+
+        // 2) 삭제
+        $this->actingAs($this->adminUser)
+            ->deleteJson("/api/modules/sirsoft-page/admin/pages/{$firstId}")
+            ->assertStatus(200);
+
+        $this->assertDatabaseMissing('pages', ['id' => $firstId]);
+
+        // 3) 동일 slug 로 재생성 — 성공해야 함
+        $second = $this->actingAs($this->adminUser)
+            ->postJson('/api/modules/sirsoft-page/admin/pages', [
+                'slug' => $slug,
+                'title' => ['ko' => '재생성 페이지', 'en' => 'Recreated'],
+                'content' => ['ko' => '본문', 'en' => 'Content'],
+                'content_mode' => 'html',
+            ]);
+
+        $second->assertStatus(201)
+            ->assertJsonPath('data.slug', $slug);
+    }
+
+    /**
+     * 페이지 삭제 후 슬러그 중복 체크와 생성 검증 결과가 일치하는지 확인 (#424-20 회귀)
+     *
+     * 삭제 후 check-slug 는 "사용 가능", 생성도 성공해야 한다 (두 경로 정합).
+     */
+    public function test_check_slug_and_create_are_consistent_after_delete(): void
+    {
+        $slug = 'test-consistent-slug';
+
+        $first = $this->actingAs($this->adminUser)
+            ->postJson('/api/modules/sirsoft-page/admin/pages', [
+                'slug' => $slug,
+                'title' => ['ko' => '원본', 'en' => 'Original'],
+                'content_mode' => 'html',
+            ]);
+        $first->assertStatus(201);
+        $firstId = $first->json('data.id');
+
+        $this->actingAs($this->adminUser)
+            ->deleteJson("/api/modules/sirsoft-page/admin/pages/{$firstId}")
+            ->assertStatus(200);
+
+        // check-slug 는 사용 가능(exists=false)으로 응답
+        $check = $this->actingAs($this->adminUser)
+            ->postJson('/api/modules/sirsoft-page/admin/pages/check-slug', [
+                'slug' => $slug,
+            ]);
+        $check->assertStatus(200)
+            ->assertJsonPath('data.exists', false);
+
+        // 생성도 성공 (check-slug 와 동일 결론)
+        $create = $this->actingAs($this->adminUser)
+            ->postJson('/api/modules/sirsoft-page/admin/pages', [
+                'slug' => $slug,
+                'title' => ['ko' => '재생성', 'en' => 'Recreated'],
+                'content_mode' => 'html',
+            ]);
+        $create->assertStatus(201);
+    }
+
+    /**
+     * 첨부가 있는 페이지를 물리 삭제해도 삭제 흐름(첨부 정리 + 활동로그 기록)이 정상 완료되는지 확인 (#424-20)
+     *
+     * 활동로그 리스너는 삭제되는 페이지를 loggable 로 참조한다. hard delete 후 loggable 행이
+     * 사라지더라도 삭제 응답이 200 이고 페이지/첨부 행이 모두 물리 삭제되어야 한다.
+     */
+    public function test_deleting_page_with_attachment_completes_without_error(): void
+    {
+        $page = Page::factory()->create([
+            'slug' => 'test-delete-with-attach',
+            'created_by' => $this->adminUser->id,
+            'updated_by' => $this->adminUser->id,
+        ]);
+
+        $attachment = PageAttachment::factory()->create([
+            'page_id' => $page->id,
+            'created_by' => $this->adminUser->id,
+        ]);
+
+        $response = $this->actingAs($this->adminUser)
+            ->deleteJson("/api/modules/sirsoft-page/admin/pages/{$page->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true);
+
+        // 페이지 + 첨부 모두 물리 삭제
+        $this->assertDatabaseMissing('pages', ['id' => $page->id]);
+        $this->assertDatabaseMissing('page_attachments', ['id' => $attachment->id]);
     }
 
     // ─── 발행 토글 (publish) ───────────────────────────

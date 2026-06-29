@@ -162,7 +162,7 @@ class PageAttachmentServiceTest extends ModuleTestCase
     /**
      * 첨부파일을 삭제할 수 있는지 확인
      */
-    public function test_delete_attachment_soft_deletes(): void
+    public function test_delete_attachment_hard_deletes(): void
     {
         $page = Page::factory()->create([
             'slug' => 'test-svc-del-attach',
@@ -176,7 +176,7 @@ class PageAttachmentServiceTest extends ModuleTestCase
         $result = $this->service->deleteAttachment($attachment);
 
         $this->assertTrue($result);
-        $this->assertSoftDeleted('page_attachments', ['id' => $attachment->id]);
+        $this->assertDatabaseMissing('page_attachments', ['id' => $attachment->id]);
     }
 
     // ─── reorder ───────────────────────────────────────

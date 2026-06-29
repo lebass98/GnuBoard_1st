@@ -174,7 +174,7 @@ class PageAttachmentControllerTest extends FeatureTestCase
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        $this->assertSoftDeleted('page_attachments', ['id' => $attachment->id]);
+        $this->assertDatabaseMissing('page_attachments', ['id' => $attachment->id]);
     }
 
     /**

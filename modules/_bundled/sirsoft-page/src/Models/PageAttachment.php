@@ -6,13 +6,11 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Sirsoft\Page\Database\Factories\PageAttachmentFactory;
 
 class PageAttachment extends Model
 {
     use HasFactory;
-    use SoftDeletes;
 
     /**
      * 팩토리 클래스를 반환합니다.

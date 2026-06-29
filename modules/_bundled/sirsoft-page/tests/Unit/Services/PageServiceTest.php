@@ -144,16 +144,16 @@ class PageServiceTest extends ModuleTestCase
     // ─── deletePage ────────────────────────────────────
 
     /**
-     * 페이지를 소프트 삭제할 수 있는지 확인
+     * 페이지를 물리 삭제할 수 있는지 확인
      */
-    public function test_delete_page_soft_deletes(): void
+    public function test_delete_page_hard_deletes(): void
     {
         $page = $this->createTestPage('test-svc-delete');
 
         $result = $this->service->deletePage($page);
 
         $this->assertTrue($result);
-        $this->assertSoftDeleted('pages', ['id' => $page->id]);
+        $this->assertDatabaseMissing('pages', ['id' => $page->id]);
     }
 
     // ─── changePublishStatus ───────────────────────────
