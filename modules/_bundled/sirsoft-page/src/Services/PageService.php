@@ -211,16 +211,40 @@ class PageService
      */
     public function bulkChangePublishStatus(array $ids, bool $published): int
     {
-        $updateData = [
-            'published' => $published,
-            'updated_by' => Auth::id(),
-        ];
-
-        if ($published) {
-            $updateData['published_at'] = now();
+        if (empty($ids)) {
+            return 0;
         }
 
-        return $this->pageRepository->bulkUpdatePublished($ids, $updateData);
+        return DB::transaction(function () use ($ids, $published) {
+            $userId = Auth::id();
+            $count = 0;
+
+            foreach ($ids as $id) {
+                // 존재하지 않는 페이지가 섞이면 예외 → 트랜잭션 전체 롤백 (all-or-nothing)
+                $page = $this->pageRepository->findOrFail((int) $id);
+
+                HookManager::doAction('sirsoft-page.page.before_publish', $page, $published);
+
+                $updateData = [
+                    'published' => $published,
+                    'updated_by' => $userId,
+                ];
+
+                // 발행 시 published_at 갱신
+                if ($published) {
+                    $updateData['published_at'] = now();
+                }
+
+                $page = $this->pageRepository->update($page, $updateData);
+
+                // 페이지별 after_publish 발화 → 활동로그 per-item 기록 (이슈 #424-19)
+                HookManager::doAction('sirsoft-page.page.after_publish', $page, $published);
+
+                $count++;
+            }
+
+            return $count;
+        });
     }
 
     /**

@@ -212,9 +212,12 @@ class PageController extends AdminBaseController
             $validated = $request->validated();
             $count = $this->pageService->bulkChangePublishStatus($validated['ids'], $validated['published']);
 
-            return $this->success('sirsoft-page::messages.page.bulk_publish_success', [
-                'count' => $count,
-            ]);
+            return $this->success(
+                'sirsoft-page::messages.page.bulk_publish_success',
+                ['count' => $count],
+                200,
+                ['count' => $count],
+            );
         } catch (\Exception $e) {
             return $this->error('sirsoft-page::messages.page.bulk_publish_failed', 500, $e->getMessage());
         }

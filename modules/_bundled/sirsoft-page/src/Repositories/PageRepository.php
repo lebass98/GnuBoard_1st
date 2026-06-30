@@ -290,18 +290,6 @@ class PageRepository implements PageRepositoryInterface
     }
 
     /**
-     * 여러 페이지의 발행 상태를 일괄 변경합니다.
-     *
-     * @param  array  $ids  페이지 ID 목록
-     * @param  array  $data  업데이트할 데이터 (published, updated_by 등)
-     * @return int 변경된 페이지 수
-     */
-    public function bulkUpdatePublished(array $ids, array $data): int
-    {
-        return Page::whereIn('id', $ids)->update($data);
-    }
-
-    /**
      * filters 배열을 search/search_field로 정규화합니다.
      *
      * 레이아웃에서 전달되는 filters[0][field]/filters[0][value] 형식을

@@ -882,6 +882,11 @@ class PageControllerTest extends FeatureTestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.count', 3);
 
+        // 성공 메시지의 :count 플레이스홀더가 실제 건수로 치환되는지 확인 (이슈 #424-19 회귀)
+        $message = $response->json('message');
+        $this->assertStringNotContainsString(':count', $message, '메시지에 :count 플레이스홀더가 치환되지 않고 남았습니다.');
+        $this->assertStringContainsString('3', $message, '메시지에 변경 건수(3)가 포함되어야 합니다.');
+
         // DB 확인
         foreach ($ids as $id) {
             $this->assertDatabaseHas('pages', ['id' => $id, 'published' => true]);
