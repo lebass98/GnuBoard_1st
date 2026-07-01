@@ -40,14 +40,18 @@ class SeoPageCacheListenerTest extends ModuleTestCase
         $this->assertArrayHasKey('sirsoft-page.page.after_create', $hooks);
         $this->assertArrayHasKey('sirsoft-page.page.after_update', $hooks);
         $this->assertArrayHasKey('sirsoft-page.page.after_delete', $hooks);
+        // 버전 복원도 SEO 캐시 무효화가 필요하다 (이슈 #424-14: 복원 후 봇에 복원 전 버전 잔존 회귀 방지)
+        $this->assertArrayHasKey('sirsoft-page.page.after_restore', $hooks);
 
         $this->assertEquals('onPageChange', $hooks['sirsoft-page.page.after_create']['method']);
         $this->assertEquals('onPageChange', $hooks['sirsoft-page.page.after_update']['method']);
         $this->assertEquals('onPageChange', $hooks['sirsoft-page.page.after_delete']['method']);
+        $this->assertEquals('onPageChange', $hooks['sirsoft-page.page.after_restore']['method']);
 
         $this->assertEquals(20, $hooks['sirsoft-page.page.after_create']['priority']);
         $this->assertEquals(20, $hooks['sirsoft-page.page.after_update']['priority']);
         $this->assertEquals(20, $hooks['sirsoft-page.page.after_delete']['priority']);
+        $this->assertEquals(20, $hooks['sirsoft-page.page.after_restore']['priority']);
     }
 
     // ─── onPageChange: 캐시 무효화 상태 검증 ──────────────

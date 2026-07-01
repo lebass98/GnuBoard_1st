@@ -11,6 +11,7 @@ use App\Helpers\PermissionHelper;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Seo\Contracts\SeoCacheManagerInterface;
 use Modules\Sirsoft\Page\Models\Page;
 use Modules\Sirsoft\Page\Models\PageAttachment;
 use Modules\Sirsoft\Page\Models\PageVersion;
@@ -1295,6 +1296,102 @@ class PageControllerTest extends FeatureTestCase
         $page->refresh();
         $this->assertEquals('원래 제목', $page->title['ko']);
         $this->assertEquals(3, $page->current_version); // 복원 후 버전 증가
+    }
+
+    /**
+     * 버전 복원 시 페이지 상세 SEO 캐시가 무효화되는지 확인 (이슈 #424-14)
+     *
+     * 복원은 title/content/seo_meta 를 이전 버전으로 되돌리므로 수정과 동일하게
+     * 검색봇용 SEO 캐시를 갱신해야 한다. 복원 전 상세 URL 캐시를 적재한 뒤 복원하면
+     * after_restore 훅 → SeoPageCacheListener 가 해당 캐시를 무효화해야 한다.
+     * (회귀 배경: after_restore 미구독으로 복원 후에도 봇에 복원 전 버전이 잔존)
+     */
+    public function test_restore_version_invalidates_page_detail_seo_cache(): void
+    {
+        $page = Page::factory()->create([
+            'slug' => 'restore-seo-cache',
+            'title' => ['ko' => '현재 제목', 'en' => 'Current Title'],
+            'current_version' => 2,
+            'created_by' => $this->adminUser->id,
+            'updated_by' => $this->adminUser->id,
+        ]);
+
+        $version1 = PageVersion::create([
+            'page_id' => $page->id,
+            'version' => 1,
+            'title' => ['ko' => '원래 제목', 'en' => 'Original Title'],
+            'content' => ['ko' => '원래 내용', 'en' => 'Original Content'],
+            'content_mode' => 'html',
+            'created_by' => $this->adminUser->id,
+        ]);
+
+        PageVersion::create([
+            'page_id' => $page->id,
+            'version' => 2,
+            'title' => ['ko' => '현재 제목', 'en' => 'Current Title'],
+            'content' => ['ko' => '현재 내용', 'en' => 'Current Content'],
+            'content_mode' => 'html',
+            'created_by' => $this->adminUser->id,
+        ]);
+
+        // 복원 전 페이지 상세 URL 캐시 적재 (봇 응답 캐시 시뮬레이션)
+        $cache = app(SeoCacheManagerInterface::class);
+        $cache->put("/page/{$page->slug}", 'ko', '<html>현재 내용</html>');
+        $this->assertContains("/page/{$page->slug}", $cache->getCachedUrls());
+
+        $response = $this->actingAs($this->adminUser)
+            ->postJson("/api/modules/sirsoft-page/admin/pages/{$page->id}/versions/{$version1->id}/restore");
+
+        $response->assertStatus(200);
+
+        // 복원 후 상세 캐시가 무효화되어 봇이 새로 렌더한다
+        $this->assertNotContains("/page/{$page->slug}", $cache->getCachedUrls());
+    }
+
+    /**
+     * 버전 복원 후 새 버전이 생성되고 기존 버전 이력이 모두 보존되는지 확인 (이슈 #424-14, 검수항목 3·4)
+     *
+     * 복원은 다음 버전 번호로 새 스냅샷을 만들며, 복원 대상을 포함한 기존 버전 이력을
+     * 삭제하지 않고 그대로 보존해야 한다.
+     */
+    public function test_restore_version_creates_new_version_and_preserves_history(): void
+    {
+        $page = Page::factory()->create([
+            'slug' => 'restore-history-preserved',
+            'title' => ['ko' => '현재 제목', 'en' => 'Current Title'],
+            'current_version' => 2,
+            'created_by' => $this->adminUser->id,
+            'updated_by' => $this->adminUser->id,
+        ]);
+
+        $version1 = PageVersion::create([
+            'page_id' => $page->id,
+            'version' => 1,
+            'title' => ['ko' => '원래 제목', 'en' => 'Original Title'],
+            'content' => ['ko' => '원래 내용', 'en' => 'Original Content'],
+            'content_mode' => 'html',
+            'created_by' => $this->adminUser->id,
+        ]);
+
+        PageVersion::create([
+            'page_id' => $page->id,
+            'version' => 2,
+            'title' => ['ko' => '현재 제목', 'en' => 'Current Title'],
+            'content' => ['ko' => '현재 내용', 'en' => 'Current Content'],
+            'content_mode' => 'html',
+            'created_by' => $this->adminUser->id,
+        ]);
+
+        $this->actingAs($this->adminUser)
+            ->postJson("/api/modules/sirsoft-page/admin/pages/{$page->id}/versions/{$version1->id}/restore")
+            ->assertStatus(200);
+
+        // 기존 버전 1·2 는 보존되고, 복원으로 버전 3 이 새로 생성되어 총 3건
+        $versions = PageVersion::where('page_id', $page->id)->orderBy('version')->get();
+        $this->assertCount(3, $versions);
+        $this->assertEquals([1, 2, 3], $versions->pluck('version')->all());
+        // 복원 대상(버전 1) 레코드가 삭제되지 않고 남아 있다
+        $this->assertNotNull(PageVersion::find($version1->id));
     }
 
     // ─── 인증/권한 차단 ────────────────────────────────
