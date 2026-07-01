@@ -20,15 +20,21 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 type SeedFixtures = {
-  /** 시드된 페이지 도메인 데이터 (페이지 ID + 첨부 ID 배열) */
-  seededPage: { pageIds: number[]; attachmentIds: number[] };
+  /** 시드된 페이지 도메인 데이터 (고정 슬러그 미발행/발행 페이지 + 첨부 ID 배열) */
+  seededPage: {
+    unpublished_slug: string;
+    published_slug: string;
+    unpublished_id: number;
+    published_id: number;
+    attachment_ids: number[];
+  };
 };
 
 export const test = base.extend<SeedFixtures>({
   seededPage: async ({}, use) => {
     // 6단계 상위 = 코어 루트 (artisan 실행 cwd)
     const coreRoot = process.env.G7_ROOT || resolve(__dirname, '../../../../../../');
-    const out = execSync('php artisan playwright:seed-page --pages=3 --attachments=3 --json', {
+    const out = execSync('php artisan playwright:seed-page --attachments=2 --json', {
       cwd: coreRoot,
       encoding: 'utf-8',
       env: {
@@ -36,7 +42,9 @@ export const test = base.extend<SeedFixtures>({
         G7_PLAYWRIGHT_BYPASS: '1',
       },
     });
-    const seed = JSON.parse(out);
+    // artisan 출력에 경고 등이 섞일 수 있으므로 마지막 JSON 라인만 파싱
+    const jsonLine = out.trim().split(/\r?\n/).filter((l) => l.trim().startsWith('{')).pop() ?? '{}';
+    const seed = JSON.parse(jsonLine);
     await use(seed);
     // TODO: teardown 시 cleanup 커맨드 호출
   },

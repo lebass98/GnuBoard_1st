@@ -107,6 +107,146 @@ class PublicPageControllerTest extends FeatureTestCase
         $response->assertStatus(404);
     }
 
+    // ─── 미발행 페이지 관리자 미리보기 (#424-15) ────────
+
+    /**
+     * 페이지 조회 권한(pages.read) 관리자는 미발행 페이지를 미리볼 수 있는지 확인
+     */
+    public function test_admin_with_read_permission_can_preview_unpublished_page(): void
+    {
+        $admin = $this->createAdminUser(['sirsoft-page.pages.read']);
+
+        Page::factory()->create([
+            'slug' => 'test-draft-preview',
+            'published' => false,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/api/modules/sirsoft-page/pages/test-draft-preview');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.slug', 'test-draft-preview')
+            ->assertJsonPath('data.is_preview', true);
+    }
+
+    /**
+     * 미발행 미리보기 응답의 첨부 URL이 관리자용(발행 가드 없는) 라우트인지 확인
+     */
+    public function test_admin_preview_unpublished_page_attachments_use_admin_url(): void
+    {
+        $admin = $this->createAdminUser(['sirsoft-page.pages.read']);
+
+        $page = Page::factory()->create([
+            'slug' => 'test-draft-preview-attach',
+            'published' => false,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        // 이미지 첨부 — preview_url 은 이미지에만 생성되므로 image mime 사용
+        PageAttachment::create([
+            'page_id' => $page->id,
+            'original_filename' => 'draft.png',
+            'stored_filename' => 'stored-draft.png',
+            'disk' => 'local',
+            'path' => 'test/draft.png',
+            'mime_type' => 'image/png',
+            'size' => 1024,
+            'collection' => 'attachments',
+            'order' => 1,
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/api/modules/sirsoft-page/pages/test-draft-preview-attach');
+
+        $response->assertStatus(200);
+        $downloadUrl = $response->json('data.attachments.0.download_url');
+        $previewUrl = $response->json('data.attachments.0.preview_url');
+        $this->assertStringContainsString('/admin/attachments/download/', $downloadUrl);
+        $this->assertStringContainsString('/admin/attachments/preview/', $previewUrl);
+    }
+
+    /**
+     * 페이지 권한이 없는 일반 회원은 미발행 페이지를 미리볼 수 없음(404)
+     */
+    public function test_non_admin_user_cannot_preview_unpublished_page(): void
+    {
+        $author = $this->createAdminUser([]);
+        $member = $this->createUser();
+
+        Page::factory()->create([
+            'slug' => 'test-draft-member',
+            'published' => false,
+            'created_by' => $author->id,
+            'updated_by' => $author->id,
+        ]);
+
+        $response = $this->actingAs($member)
+            ->getJson('/api/modules/sirsoft-page/pages/test-draft-member');
+
+        $response->assertStatus(404);
+    }
+
+    /**
+     * pages.read 권한이 없는 관리자(다른 모듈 admin)는 미발행 페이지를 미리볼 수 없음(404)
+     */
+    public function test_admin_without_pages_read_cannot_preview_unpublished_page(): void
+    {
+        // sirsoft-page.pages.read 가 아닌 다른 admin 권한만 보유
+        $otherAdmin = $this->createAdminUser(['sirsoft-other.things.read']);
+
+        Page::factory()->create([
+            'slug' => 'test-draft-other-admin',
+            'published' => false,
+            'created_by' => $otherAdmin->id,
+            'updated_by' => $otherAdmin->id,
+        ]);
+
+        $response = $this->actingAs($otherAdmin)
+            ->getJson('/api/modules/sirsoft-page/pages/test-draft-other-admin');
+
+        $response->assertStatus(404);
+    }
+
+    /**
+     * 발행된 페이지의 첨부 URL은 관리자 요청이어도 공개용 라우트를 유지하는지 확인
+     */
+    public function test_published_page_attachments_use_public_url_even_for_admin(): void
+    {
+        $admin = $this->createAdminUser(['sirsoft-page.pages.read']);
+
+        $page = Page::factory()->published()->create([
+            'slug' => 'test-published-admin-attach',
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        PageAttachment::create([
+            'page_id' => $page->id,
+            'original_filename' => 'public.pdf',
+            'stored_filename' => 'stored-public.pdf',
+            'disk' => 'local',
+            'path' => 'test/public.pdf',
+            'mime_type' => 'application/pdf',
+            'size' => 1024,
+            'collection' => 'attachments',
+            'order' => 1,
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->getJson('/api/modules/sirsoft-page/pages/test-published-admin-attach');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.is_preview', false);
+        $downloadUrl = $response->json('data.attachments.0.download_url');
+        $this->assertStringContainsString('/pages/attachment/', $downloadUrl);
+    }
+
     /**
      * 발행된 페이지 조회 시 첨부파일 목록이 포함되는지 확인
      */
@@ -133,7 +273,7 @@ class PublicPageControllerTest extends FeatureTestCase
             'created_by' => $admin->id,
         ]);
 
-        $response = $this->getJson("/api/modules/sirsoft-page/pages/test-page-with-attach");
+        $response = $this->getJson('/api/modules/sirsoft-page/pages/test-page-with-attach');
 
         $response->assertStatus(200)
             ->assertJsonStructure([

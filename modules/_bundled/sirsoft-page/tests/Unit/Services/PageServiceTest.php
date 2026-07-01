@@ -401,6 +401,35 @@ class PageServiceTest extends ModuleTestCase
         $this->assertNull($page);
     }
 
+    /**
+     * allowUnpublished=true 이면 미발행 페이지도 반환하는지 확인 (#424-15 미리보기)
+     */
+    public function test_get_published_page_by_slug_returns_draft_when_preview_allowed(): void
+    {
+        Page::factory()->create([
+            'slug' => 'test-svc-draft-preview',
+            'published' => false,
+            'created_by' => $this->adminUser->id,
+            'updated_by' => $this->adminUser->id,
+        ]);
+
+        $page = $this->service->getPublishedPageBySlug('test-svc-draft-preview', true);
+
+        $this->assertNotNull($page);
+        $this->assertEquals('test-svc-draft-preview', $page->slug);
+        $this->assertFalse((bool) $page->published);
+    }
+
+    /**
+     * allowUnpublished=true 여도 존재하지 않는 슬러그는 null 을 반환하는지 확인
+     */
+    public function test_get_published_page_by_slug_returns_null_for_missing_even_when_preview_allowed(): void
+    {
+        $page = $this->service->getPublishedPageBySlug('test-svc-no-such-slug', true);
+
+        $this->assertNull($page);
+    }
+
     // ─── scope 검증 (AccessDeniedHttpException) ────
 
     /**
