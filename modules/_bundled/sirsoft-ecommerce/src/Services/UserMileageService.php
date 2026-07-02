@@ -284,36 +284,16 @@ class UserMileageService
             return null;
         }
 
-        // 금액 델타 멱등: 목표 적립액(옵션 subtotal_earned) − 기적립 purchase_earn 합계 = 델타만 적립.
-        // 나눠 확정·병합으로 목표액이 늘면 차액을 추가 지급하고, 단순 재확정·스케줄러 재실행은 델타 0 으로 no-op.
-        $target = (float) $option->subtotal_earned_points_amount;
-        $alreadyEarned = $this->ledger->sumPurchaseEarnedForOption($option->id);
-        $amount = $target - $alreadyEarned;
+        if ($this->ledger->existsEarnForOption($option->id)) {
+            return null;
+        }
+
+        $amount = (float) $option->subtotal_earned_points_amount;
         if ($amount <= 0) {
             return null;
         }
 
         $currency = $this->baseCurrencyForOrder($order);
-
-        // 방식 A: 기존 purchase_earn lot 이 있으면 그 lot 에 델타를 증액(적립 내역 한 줄 유지).
-        // 취소 회수(findEarnLotForOption 단일 lot 가정)·유효기간 정합을 위해 신규 lot 을 늘리지 않는다.
-        if ($type === MileageTransactionTypeEnum::PURCHASE_EARN
-            && ($existingLot = $this->ledger->findEarnLotForOption($option->id)) !== null) {
-            $this->ledger->incrementEarnLotAmount($existingLot, $amount);
-
-            $this->cache->recalculateForUser($order->user_id, $currency);
-            $this->cache->recalculatePending($order->user_id, $currency);
-
-            $this->logActivity('mileage.earn', [
-                'loggable' => $existingLot,
-                'description_key' => 'sirsoft-ecommerce::activity_log.description.mileage_earn',
-                'description_params' => ['amount' => (int) $amount],
-                'properties' => ['order_id' => $order->id, 'order_option_id' => $option->id, 'currency' => $currency, 'delta' => (int) $amount],
-            ]);
-
-            return $existingLot;
-        }
-
         $expiresAt = $this->resolveEarnExpiry();
 
         $tx = $this->ledger->createTransaction([
@@ -751,7 +731,7 @@ class UserMileageService
     }
 
     /**
-     * 회원 탈퇴/삭제 시 활성 lot 소멸 기록 (감사 흐름 보존 — 정책 확정 #8)
+     * 회원 탈퇴/삭제 시 활성 lot 소멸 기록 (감사 흐름 보존 — PO 확정 #8)
      *
      * 활성 lot 을 expired 거래로 소멸 기록(활동로그에 금액·통화·회원ID 잔존)합니다.
      * 거래/캐시 행은 이후 cascade 또는 명시 삭제로 함께 사라집니다.
@@ -784,7 +764,7 @@ class UserMileageService
     }
 
     /**
-     * 회원 탈퇴/삭제 시 마일리지 데이터를 명시적으로 정리합니다 (정책 확정 #8).
+     * 회원 탈퇴/삭제 시 마일리지 데이터를 명시적으로 정리합니다 (PO 확정 #8).
      *
      * 활성 lot 을 expired 거래로 소멸 기록(활동로그 보존)한 뒤, 원장·잔액 캐시 행을
      * 동일 트랜잭션에서 삭제합니다. CASCADE 는 안전망으로만 두고 명시 삭제합니다
@@ -1006,7 +986,7 @@ class UserMileageService
      * 마일리지 사용이 가능한지 여부를 반환합니다.
      *
      * 기본 통화(base_currency)에 대한 마일리지 통화별 사용 단위 규칙이 설정되어 있지 않으면
-     * 마일리지 사용을 허용하지 않는다(정책). 마일리지는 base_currency 기준으로 사용/정산되므로
+     * 마일리지 사용을 허용하지 않는다(PO 정책). 마일리지는 base_currency 기준으로 사용/정산되므로
      * base 규칙이 없으면 사용 단위·최소 사용액·한도를 알 수 없어 사용 자체가 불가하다.
      *
      * @return bool 기본 통화 마일리지 사용 규칙이 설정되어 있으면 true

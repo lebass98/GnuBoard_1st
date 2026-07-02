@@ -125,12 +125,6 @@ Route::group([], function () {
 
     // 모듈 에셋 서빙 API
     Route::prefix('modules')->group(function () {
-        // 활성 모듈 프론트엔드 IIFE/CSS 병합 번들 (개별 assets 라우트보다 위에 명시 등록)
-        Route::get('bundle.js', [PublicModuleController::class, 'serveBundleJs'])
-            ->name('api.public.modules.bundle.js');
-        Route::get('bundle.css', [PublicModuleController::class, 'serveBundleCss'])
-            ->name('api.public.modules.bundle.css');
-
         Route::get('assets/{identifier}/{path}', [PublicModuleController::class, 'serveAsset'])
             ->where('path', '.*')
             ->name('api.public.modules.assets');
@@ -146,12 +140,6 @@ Route::group([], function () {
 
     // 플러그인 에셋 서빙 API
     Route::prefix('plugins')->group(function () {
-        // 활성 플러그인 프론트엔드 IIFE/CSS 병합 번들 (개별 assets 라우트보다 위에 명시 등록)
-        Route::get('bundle.js', [PublicPluginController::class, 'serveBundleJs'])
-            ->name('api.public.plugins.bundle.js');
-        Route::get('bundle.css', [PublicPluginController::class, 'serveBundleCss'])
-            ->name('api.public.plugins.bundle.css');
-
         Route::get('assets/{identifier}/{path}', [PublicPluginController::class, 'serveAsset'])
             ->where('path', '.*')
             ->name('api.public.plugins.assets');
@@ -774,7 +762,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.user_status', 'admin'
             ->middleware('permission:admin,core.templates.layouts.edit')
             ->name('api.admin.templates.editor-permission-candidates');
         // 편집기 프리뷰 전용 CSS — 다크 셀렉터를 프리뷰 마커(.g7le-preview-dark)로 치환해 서빙
-        // 관리자 admin 의 html.dark 조상과 독립적으로 프리뷰 라이트/다크 격리.
+        // PO admin 의 html.dark 조상과 독립적으로 프리뷰 라이트/다크 격리.
         Route::get('{identifier}/editor/components.css', [AdminTemplateAssetController::class, 'serveEditorCss'])
             ->middleware('permission:admin,core.templates.layouts.edit')
             ->name('api.admin.templates.editor-css');

@@ -316,10 +316,9 @@ class ProductInquiryService
                 'product_id'  => $inquiry->product_id,
                 'product'     => $inquiry->product ? [
                     'id'            => $inquiry->product->id,
-                    'product_code'  => $inquiry->product->product_code,
                     'name'          => $inquiry->product->getLocalizedName(),
                     'thumbnail_url' => $inquiry->product->getThumbnailUrl(),
-                    'url'           => '/' . ltrim($this->settingsService->getSetting('basic_info.route_path', 'shop'), '/') . '/products/' . $inquiry->product->product_code,
+                    'url'           => '/' . ltrim($this->settingsService->getSetting('basic_info.route_path', 'shop'), '/') . '/products/' . $inquiry->product->id,
                 ] : null,
                 'product_name'  => $this->localizeProductName($inquiry->product_name_snapshot),
                 'is_answered'   => $inquiry->is_answered,

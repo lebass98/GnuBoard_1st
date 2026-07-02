@@ -7,7 +7,6 @@ use App\Contracts\Repositories\AttachmentRepositoryInterface;
 use App\Contracts\Repositories\ConfigRepositoryInterface;
 use App\Extension\HookManager;
 use App\Http\Resources\AttachmentResource;
-use App\Support\ConfigCacheHelper;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -33,14 +32,11 @@ class SettingsService
      * 시스템 설정 캐시를 무효화합니다.
      *
      * 설정 저장 시 4곳에서 중복되던 로직을 단일 메서드로 통합했습니다.
-     * config 캐시는 clear 후 즉시 재생성한다(ConfigCacheHelper). config:clear 만
-     * 하면 config:cache 가 비워진 채 재생성되지 않아 이후 모든 요청이 config 파일을
-     * 재파싱하는 성능 손실이 발생하기 때문이다.
      */
     private function invalidateSettingsCache(): void
     {
         $this->cache->forget('settings.system');
-        ConfigCacheHelper::rebuild();
+        Artisan::call('config:clear');
     }
 
     /**
@@ -826,71 +822,27 @@ class SettingsService
     private function buildSystemInfo(): array
     {
         return [
-            // php_uname / ini_get 은 disable_functions 로 차단될 수 있어 개별 격리한다.
-            'os_info' => $this->safeSystemProbe('os_info', fn () => php_uname('s').' '.php_uname('r'), __('common.unknown')),
+            'os_info' => php_uname('s').' '.php_uname('r'),
             'web_server' => $_SERVER['SERVER_SOFTWARE'] ?? __('common.unknown'),
             'php_version' => PHP_VERSION,
-            'mysql_version' => $this->safeSystemProbe('mysql_version', fn () => $this->getDatabaseInfo(), __('common.unknown')),
+            'mysql_version' => $this->getDatabaseInfo(),
             'g7_version' => config('app.version', '1.0.0'),
             'g7_release_year' => config('app.release_year', '2026'),
             'laravel_version' => app()->version(),
             'environment' => app()->environment(),
-            'cpu_info' => $this->safeSystemProbe('cpu_info', fn () => $this->getCpuInfo(), __('common.unknown')),
-            'memory_usage' => $this->safeSystemProbe('memory_usage', fn () => $this->getMemoryUsage(), $this->unknownUsage()),
-            'disk_usage' => $this->safeSystemProbe('disk_usage', fn () => $this->getDiskUsage(), $this->unknownUsage()),
-            'php_memory_limit' => $this->safeSystemProbe('php_memory_limit', fn () => ini_get('memory_limit'), __('common.unknown')),
-            'max_execution_time' => $this->safeSystemProbe('max_execution_time', fn () => ini_get('max_execution_time').__('settings.seconds'), __('common.unknown')),
-            'upload_max_filesize' => $this->safeSystemProbe('upload_max_filesize', fn () => ini_get('upload_max_filesize'), __('common.unknown')),
+            'cpu_info' => $this->getCpuInfo(),
+            'memory_usage' => $this->getMemoryUsage(),
+            'disk_usage' => $this->getDiskUsage(),
+            'php_memory_limit' => ini_get('memory_limit'),
+            'max_execution_time' => ini_get('max_execution_time').__('settings.seconds'),
+            'upload_max_filesize' => ini_get('upload_max_filesize'),
             'install_path' => base_path(),
             'config_path' => storage_path('app/settings'),
             'log_path' => storage_path('logs'),
             'upload_path' => storage_path('app/public'),
-            'php_extensions' => $this->safeSystemProbe('php_extensions', fn () => $this->getPhpExtensions(), ['required' => [], 'optional' => []]),
-            'database_config' => $this->safeSystemProbe('database_config', fn () => $this->getDatabaseConfig(), ['has_read_write_split' => false, 'write' => [], 'read' => []]),
+            'php_extensions' => $this->getPhpExtensions(),
+            'database_config' => $this->getDatabaseConfig(),
             'timezone' => config('app.timezone'),
-        ];
-    }
-
-    /**
-     * 시스템 정보 probe 를 안전하게 실행합니다.
-     *
-     * probe 가 예외(ErrorException·Error·disable_functions 로 인한 Error 포함)를
-     * 던지면 전파하지 않고 폴백값을 반환하고 경고 로그를 남깁니다. 개별 항목 수집
-     * 실패가 system-info API 전체를 500 으로 만들지 않도록 격리합니다.
-     *
-     * @param  string  $label  실패 로그 식별용 항목명 (예: 'cpu_info')
-     * @param  callable  $cb  실행할 probe 콜백
-     * @param  mixed  $fallback  실패 시 반환할 폴백 값
-     * @return mixed probe 결과 또는 폴백
-     */
-    private function safeSystemProbe(string $label, callable $cb, mixed $fallback): mixed
-    {
-        try {
-            return $cb();
-        } catch (\Throwable $e) {
-            Log::warning('시스템 정보 수집 실패', [
-                'item' => $label,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $fallback;
-        }
-    }
-
-    /**
-     * 메모리/디스크 사용량 조회 실패 시 사용할 폴백 배열을 반환합니다.
-     *
-     * total/used/free/percentage 형식을 memory_usage·disk_usage 와 동일하게 유지합니다.
-     *
-     * @return array 사용량 폴백 배열
-     */
-    private function unknownUsage(): array
-    {
-        return [
-            'total' => __('common.unknown'),
-            'used' => __('common.unknown'),
-            'free' => __('common.unknown'),
-            'percentage' => 0,
         ];
     }
 
@@ -907,11 +859,9 @@ class SettingsService
             }
 
             Artisan::call('cache:clear');
+            Artisan::call('config:clear');
             Artisan::call('route:clear');
             Artisan::call('view:clear');
-
-            // config 는 clear 후 즉시 재생성 (비운 채 두면 이후 모든 요청이 config 재파싱).
-            ConfigCacheHelper::rebuild();
 
             return true;
         } catch (\Exception $e) {
@@ -958,8 +908,7 @@ class SettingsService
             $envContent = preg_replace('/^APP_KEY=.*/m', 'APP_KEY='.$newKey, $envContent);
             file_put_contents($envPath, $envContent);
 
-            // .env 변경 반영 + config 캐시 재생성 (clear 만 하면 캐시 비활성 상태로 잔존).
-            ConfigCacheHelper::rebuild();
+            Artisan::call('config:clear');
 
             return [
                 'success' => true,
@@ -1000,16 +949,11 @@ class SettingsService
         try {
             $connection = DB::connection();
             $driver = $connection->getDriverName();
-            $version = $connection->select('SELECT VERSION() as version')[0]->version ?? __('common.unknown');
+            $version = $connection->select('SELECT VERSION() as version')[0]->version ?? 'Unknown';
 
             return ucfirst($driver).' '.$version;
-        } catch (\Throwable $e) {
-            Log::warning('시스템 정보 수집 실패', [
-                'item' => 'mysql_version',
-                'error' => $e->getMessage(),
-            ]);
-
-            return __('common.unknown');
+        } catch (\Exception $e) {
+            return 'Unknown';
         }
     }
 
@@ -1055,7 +999,12 @@ class SettingsService
         }
 
         if ($total <= 0) {
-            return $this->unknownUsage();
+            return [
+                'total' => __('common.unknown'),
+                'used' => __('common.unknown'),
+                'free' => __('common.unknown'),
+                'percentage' => 0,
+            ];
         }
 
         $used = max(0, $total - $free);
@@ -1085,7 +1034,12 @@ class SettingsService
         $free = is_numeric($freeRaw) ? (int) $freeRaw : 0;
 
         if ($total <= 0) {
-            return $this->unknownUsage();
+            return [
+                'total' => __('common.unknown'),
+                'used' => __('common.unknown'),
+                'free' => __('common.unknown'),
+                'percentage' => 0,
+            ];
         }
 
         $used = max(0, $total - $free);
@@ -1123,7 +1077,7 @@ class SettingsService
      *
      * @return string CPU 정보 문자열
      */
-    protected function getCpuInfo(): string
+    private function getCpuInfo(): string
     {
         if (PHP_OS_FAMILY === 'Windows') {
             $output = @shell_exec('powershell -NoProfile -NonInteractive -Command "(Get-CimInstance Win32_Processor | Select-Object -First 1).Name" 2>&1');

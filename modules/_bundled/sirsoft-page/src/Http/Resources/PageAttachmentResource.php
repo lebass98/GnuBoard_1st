@@ -4,27 +4,12 @@ namespace Modules\Sirsoft\Page\Http\Resources;
 
 use App\Http\Resources\BaseApiResource;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
-use Modules\Sirsoft\Page\Models\PageAttachment;
 
 /**
  * 페이지 첨부파일 API 리소스
  */
 class PageAttachmentResource extends BaseApiResource
 {
-    /**
-     * 첨부파일 목록을 리소스 배열로 변환합니다.
-     *
-     * @param  iterable<int, PageAttachment>|null  $attachments  첨부파일 목록
-     * @return array<int, self>
-     */
-    public static function collectionFor($attachments): array
-    {
-        return Collection::make($attachments ?? [])
-            ->map(fn ($attachment) => new self($attachment))
-            ->all();
-    }
-
     /**
      * 리소스를 배열로 변환합니다.
      *
@@ -42,8 +27,8 @@ class PageAttachmentResource extends BaseApiResource
             'collection' => $this->collection,
             'order' => $this->order,
             'is_image' => $this->isImage(),
-            'download_url' => $this->resource->downloadUrl(),
-            'preview_url' => $this->resource->previewUrl(),
+            'download_url' => $this->download_url,
+            'preview_url' => $this->preview_url,
             'created_at' => $this->created_at
                 ? $this->formatDateTimeStringForUser($this->created_at)
                 : null,

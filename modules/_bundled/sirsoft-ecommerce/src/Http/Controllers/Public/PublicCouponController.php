@@ -7,7 +7,6 @@ use App\Http\Controllers\Api\Base\PublicBaseController;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Modules\Sirsoft\Ecommerce\Models\Product;
 use Modules\Sirsoft\Ecommerce\Services\UserCouponService;
 
 /**
@@ -28,16 +27,16 @@ class PublicCouponController extends PublicBaseController
      * 로그인 시 is_downloaded 정보가 추가됩니다.
      *
      * @param Request $request 요청 데이터
-     * @param Product $product 라우트 바인딩된 상품 (product_code 또는 id)
+     * @param int $productId 상품 ID
      * @return JsonResponse 쿠폰 목록
      */
-    public function downloadableCoupons(Request $request, Product $product): JsonResponse
+    public function downloadableCoupons(Request $request, int $productId): JsonResponse
     {
         try {
             $this->logApiUsage('products.downloadable_coupons');
 
             $userId = $request->user('sanctum')?->id;
-            $coupons = $this->userCouponService->getProductDownloadableCoupons($product->id, $userId);
+            $coupons = $this->userCouponService->getProductDownloadableCoupons($productId, $userId);
 
             return ResponseHelper::moduleSuccess(
                 'sirsoft-ecommerce',

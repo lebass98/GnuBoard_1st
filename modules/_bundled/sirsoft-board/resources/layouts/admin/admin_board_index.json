@@ -259,7 +259,7 @@
                                                                                 {
                                                                                     "handler": "apiCall",
                                                                                     "auth_required": true,
-                                                                                    "target": "/api/modules/sirsoft-board/admin/boards/{{row.slug}}",
+                                                                                    "target": "/api/modules/sirsoft-board/admin/boards/{{row.id}}",
                                                                                     "params": {
                                                                                         "method": "PUT",
                                                                                         "body": {
@@ -340,7 +340,7 @@
                                                                                 "edit": {
                                                                                     "handler": "navigate",
                                                                                     "params": {
-                                                                                        "path": "/admin/boards/{{row.slug}}/edit",
+                                                                                        "path": "/admin/boards/{{row.id}}/edit",
                                                                                         "mergeQuery": false,
                                                                                         "query": []
                                                                                     }
@@ -758,7 +758,7 @@
                                         {
                                             "handler": "apiCall",
                                             "auth_required": true,
-                                            "target": "/api/modules/sirsoft-board/admin/boards/{{_global.modal_data?.slug}}",
+                                            "target": "/api/modules/sirsoft-board/admin/boards/{{_global.modal_data?.id}}",
                                             "params": {
                                                 "method": "DELETE",
                                                 "body": []

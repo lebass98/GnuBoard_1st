@@ -95,31 +95,29 @@ Route::prefix('products')->middleware(['optional.sanctum', ResolveShippingCountr
     Route::get('/recent', [PublicProductController::class, 'recent'])
         ->name('products.recent');
 
-    // 상품 상세 — product_code(16자 영숫자) 기준. 숫자 ID 도 하위호환 허용
-    // (Product::resolveRouteBinding 이 code/id 자동 해석).
-    Route::get('/{product}', [PublicProductController::class, 'show'])
-        ->where('product', '[0-9A-Za-z]+')
+    Route::get('/{id}', [PublicProductController::class, 'show'])
+        ->where('id', '[0-9]+')
         ->name('products.show');
 
-    Route::get('/{product}/downloadable-coupons', [PublicCouponController::class, 'downloadableCoupons'])
-        ->where('product', '[0-9A-Za-z]+')
+    Route::get('/{productId}/downloadable-coupons', [PublicCouponController::class, 'downloadableCoupons'])
+        ->where('productId', '[0-9]+')
         ->name('products.downloadable-coupons');
 
     // 상품 공개 리뷰 목록 및 별점 통계 조회
-    Route::get('/{product}/reviews', [PublicProductReviewController::class, 'index'])
-        ->where('product', '[0-9A-Za-z]+')
+    Route::get('/{productId}/reviews', [PublicProductReviewController::class, 'index'])
+        ->whereNumber('productId')
         ->name('products.reviews.index');
 
     // 상품 1:1 문의 목록 조회 (비회원 포함)
-    // GET /api/modules/sirsoft-ecommerce/products/{product}/inquiries
-    Route::get('/{product}/inquiries', [PublicProductInquiryController::class, 'index'])
-        ->where('product', '[0-9A-Za-z]+')
+    // GET /api/modules/sirsoft-ecommerce/products/{productId}/inquiries
+    Route::get('/{productId}/inquiries', [PublicProductInquiryController::class, 'index'])
+        ->whereNumber('productId')
         ->name('products.inquiries.index');
 
     // 상품 1:1 문의 작성 (회원 전용)
-    // POST /api/modules/sirsoft-ecommerce/products/{product}/inquiries
-    Route::post('/{product}/inquiries', [PublicProductInquiryController::class, 'store'])
-        ->where('product', '[0-9A-Za-z]+')
+    // POST /api/modules/sirsoft-ecommerce/products/{productId}/inquiries
+    Route::post('/{productId}/inquiries', [PublicProductInquiryController::class, 'store'])
+        ->whereNumber('productId')
         ->middleware('auth:sanctum')
         ->name('products.inquiries.store');
 });

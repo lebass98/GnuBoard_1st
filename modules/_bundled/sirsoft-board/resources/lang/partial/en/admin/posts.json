@@ -233,8 +233,7 @@
     "blind": "Blind",
     "restore": "Restore",
     "delete": "Delete",
-    "create": "Create Post",
-    "view_user_page": "View on site"
+    "create": "Create Post"
   },
   "author_actions": {
     "view_user": "View User Info"

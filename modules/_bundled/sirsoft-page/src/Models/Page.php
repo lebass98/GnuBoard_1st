@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Scout\Searchable;
 use Modules\Sirsoft\Page\Database\Factories\PageFactory;
 
@@ -18,6 +19,7 @@ class Page extends Model implements FulltextSearchable
 {
     use HasFactory;
     use Searchable;
+    use SoftDeletes;
 
     /** @var array<string, array> 활동 로그 추적 필드 */
     public static array $activityLogFields = [

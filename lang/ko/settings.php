@@ -21,10 +21,6 @@ return [
     'backup_success' => '데이터베이스 백업이 성공적으로 시작되었습니다.',
     'backup_failed' => '데이터베이스 백업에 실패했습니다.',
     'backup_error' => '데이터베이스 백업 중 오류가 발생했습니다.',
-    'backup_path_required' => '백업 경로를 입력해주세요.',
-    'restore_success' => '설정이 성공적으로 복원되었습니다.',
-    'restore_failed' => '설정 복원에 실패했습니다.',
-    'restore_error' => '설정 복원 중 오류가 발생했습니다.',
     'save_individual_failed' => '설정 저장에 실패했습니다: :error',
 
     // 앱 키 관련 메시지
@@ -143,12 +139,6 @@ return [
         'step_upgrade' => '업그레이드 스텝 실행 중...',
         'step_composer_prod' => '운영 디렉토리 composer install 중...',
         'step_cleanup' => '정리 중...',
-
-        // 파일 적용 방식 요약 (Step 7)
-        'apply_mode_incremental' => '파일 적용: 코어가 실제 변경한 파일만 적용했습니다 (신규 :added개, 변경 :changed개). 그 외 파일은 현재 상태 그대로 보존되었습니다.',
-        'apply_mode_incremental_prune_hint' => '신 버전에서 제거된 파일을 함께 정리하려면 `--prune` 옵션으로 다시 실행하거나 `php artisan hotfix:rollback-stale-files --prune` 을 사용하세요.',
-        'apply_mode_prune' => '파일 적용: 전체 덮어쓰기 + 제거된 파일 정리를 수행했습니다 (--prune).',
-        'apply_mode_fallback' => '파일 적용: 백업이 없어 증분 적용을 건너뛰고 전체 덮어쓰기를 수행했습니다. 사용자 커스텀 파일 보존을 원하면 다음부터는 백업을 유지한 채 업데이트하세요.',
 
         // GitHub API 에러 메시지
         'github_url_not_configured' => 'GitHub 저장소 URL이 설정되지 않았습니다.',

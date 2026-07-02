@@ -1,7 +1,6 @@
 {
   "title": "Shop",
   "description": "Discover various products",
-  "admin_edit": "Edit in admin",
   "shippability": {
     "not_shippable": "This item cannot be shipped to the selected country.",
     "not_shippable_short": "Not shippable",

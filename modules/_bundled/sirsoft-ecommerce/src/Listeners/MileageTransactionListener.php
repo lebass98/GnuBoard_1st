@@ -175,7 +175,7 @@ class MileageTransactionListener implements HookListenerInterface
 
         // 취소 전이: 기적립 건 회수.
         // 취소는 옵션 단위로 처리되므로 회수도 옵션(CANCELLED) 기준이다 — 부분취소든 전체취소든
-        // 취소된 옵션마다 이 분기를 타 개별 회수된다(별도 partial_cancelled 상태 불요). 2026-06-22
+        // 취소된 옵션마다 이 분기를 타 개별 회수된다(별도 partial_cancelled 상태 불요). PO 2026-06-22
         if ($newStatus === OrderStatusEnum::CANCELLED) {
             $this->mileageService->cancelEarnForOption($order, $option);
         }
@@ -184,20 +184,15 @@ class MileageTransactionListener implements HookListenerInterface
     /**
      * 적립 처리.
      *
-     * mileage.enabled 가 꺼져 있으면 즉시 적립도 발생시키지 않는다 — 지연 적립(스케줄러
-     * EarnMileageCommand)이 enabled 게이트로 막히는 것과 미지급 기준으로 통일한다.
-     * (기능 비활성 시 계산 완료건도 지급하지 않음 — 즉시/지연 경로 일관성 확보.)
-     * 저장 적립액이 0 이면 Service 가 자연 no-op.
+     * mileage.enabled 토글은 주문 당시 적립액 "계산"(OrderCalculationService) 단계에서만 작용한다.
+     * 리스너는 이미 계산·저장된 subtotal_earned_points_amount 를 실행할 뿐이므로 enabled 를 재검사하지 않는다.
+     * (저장값이 0 이면 Service 가 자연 no-op — PO 확정: 계산 완료된 적립은 토글로 막지 않음)
      *
      * @param  Order  $order  주문
      * @param  OrderOption  $option  주문옵션
      */
     private function earn(Order $order, OrderOption $option): void
     {
-        if (! $this->earnEnabled()) {
-            return;
-        }
-
         try {
             $this->mileageService->earnForOrderOption($order, $option, MileageTransactionTypeEnum::PURCHASE_EARN);
         } catch (\Throwable $e) {
@@ -208,18 +203,6 @@ class MileageTransactionListener implements HookListenerInterface
                 'error' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * 마일리지 기능 활성화 여부를 반환합니다.
-     *
-     * 스케줄러(EarnMileageCommand)의 enabled 게이트와 동일 기준 — 즉시/지연 적립 미지급 통일.
-     *
-     * @return bool 활성화 여부
-     */
-    private function earnEnabled(): bool
-    {
-        return (bool) $this->settings->getSetting('mileage.enabled', false);
     }
 
     /**

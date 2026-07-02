@@ -152,7 +152,6 @@ class BoardResource extends BaseApiResource
     public function toBoardInfoForUser(): array
     {
         return [
-            'id' => $this->id,
             'slug' => $this->slug,
             'name' => $this->getLocalizedName(),
             'description' => $this->getLocalizedDescription(),
@@ -395,11 +394,9 @@ class BoardResource extends BaseApiResource
                 'can_upload' => "sirsoft-board.{$slug}.attachments.upload",
                 'can_download' => "sirsoft-board.{$slug}.attachments.download",
                 'can_manage' => "sirsoft-board.{$slug}.manager",
-                // 유저 화면에서 관리자 게시판 화면 진입 게이트 (Admin 타입 admin.manage 보유자만 true)
-                'can_access_admin' => "sirsoft-board.{$slug}.admin.manage",
             ];
 
-        // 권한 일괄 조회 (개별 Permission::where() → whereIn 1회)
+        // 8개 권한을 일괄 조회 (개별 Permission::where() 8회 → whereIn 1회)
         $identifiers = array_values($permissionMap);
         $permissions = Permission::whereIn('identifier', $identifiers)->get()->keyBy('identifier');
 
