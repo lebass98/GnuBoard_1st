@@ -11,7 +11,7 @@
  * 일부면 문자열 보간한다. `onSuccess`/`onError` 가 `action-list` 파라미터를 가리키면
  * 치환 결과는 **중첩 액션 배열**이다(12.2.3 — 문자열 보간 아님).
  *
- * 생성 JSON 은 CLAUDE.md "CRITICAL RULES — API/핸들러 호출" 을 위반하지 않는다.
+ * 생성 JSON 은 코어 핸들러 규칙(API/핸들러 호출)을 위반하지 않는다.
  * `assertHandlerRules` 가 잘못된 핸들러명/위치를 dev 경고로 잡는다(레시피 작성자
  * 가드). 코어는 핸들러를 가정하지 않으므로(원칙 4.8) 레시피의 `build.handler` 를
  * 그대로 쓰되, 알려진 금지 패턴만 경고한다.
@@ -34,7 +34,7 @@ export interface NormalizedActionRecipe {
   build: ActionBuildTemplate;
 }
 
-/** CLAUDE.md 금지 → 올바른 핸들러 매핑 (레시피 작성 가드) */
+/** 코어 금지 → 올바른 핸들러 매핑 (레시피 작성 가드) */
 const HANDLER_ALIASES: Record<string, string> = {
   api: 'apiCall',
   nav: 'navigate',
@@ -161,7 +161,7 @@ function substituteValue(value: unknown, values: Record<string, unknown>): unkno
 
 /**
  * 알려진 핸들러 금지 패턴을 dev 경고로 잡고 올바른 핸들러로 교정.
- * (CLAUDE.md CRITICAL RULES — 레시피 작성자 가드. 코어는 핸들러를 강제하지 않되
+ * (코어 핸들러 규칙 — 레시피 작성자 가드. 코어는 핸들러를 강제하지 않되
  *  명백한 금지 별칭만 교정한다.)
  *
  * @param action 빌드된 액션 1건
@@ -173,7 +173,7 @@ export function assertHandlerRules(action: Record<string, unknown>): Record<stri
   const corrected = HANDLER_ALIASES[handler];
   if (corrected) {
     logger.warn(
-      `action recipe used forbidden handler "${handler}" — corrected to "${corrected}" (CLAUDE.md CRITICAL RULES)`,
+      `action recipe used forbidden handler "${handler}" — corrected to "${corrected}" (core handler rules)`,
     );
     return { ...action, handler: corrected };
   }
@@ -185,7 +185,7 @@ export function assertHandlerRules(action: Record<string, unknown>): Record<stri
       for (const k of ['target', 'onSuccess', 'onError']) {
         if (k in (params as Record<string, unknown>)) {
           logger.warn(
-            `action recipe build placed "${k}" inside params for handler "${handler}" — should be top-level (CLAUDE.md)`,
+            `action recipe build placed "${k}" inside params for handler "${handler}" — should be top-level (core handler rules)`,
           );
         }
       }
@@ -221,7 +221,7 @@ export function buildAction(
   // required param 의 sole-binding 토큰이 미입력으로 떨어지면 build 틀의 토큰을 복원한다. 이런 recipe
   // (결제 진입)는 matchAction 의 구조 fingerprint(placeholderRecipeStructureMatches)가 params 의
   // 토큰 존재에 의존하므로, 핸들러 필드를 임의 데이터 칩으로 바꾸고 다른 required 값을 비워둬도 친화
-  // 카드가 [고급]으로 강등되지 않게 토큰을 유지한다(PO 제보 회귀). 일반 recipe(리터럴 핸들러,
+  // 카드가 [고급]으로 강등되지 않게 토큰을 유지한다(제보 회귀). 일반 recipe(리터럴 핸들러,
   // apiCall 등)는 미입력 required 를 그대로 떨궈 깔끔한 JSON 정책을 지킨다 — 그쪽은 핸들러 일치만으로
   // 매칭되므로 토큰 보존이 필요 없다.
   if (recipe.build.handler.includes('{{')) {

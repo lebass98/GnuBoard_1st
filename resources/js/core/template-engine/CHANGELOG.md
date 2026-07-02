@@ -5,7 +5,7 @@
 >
 > 형식: [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)
 
-## [engine-v1.52.0] - 2026-07-01
+## [engine-v1.52.0] - 2026-07-02
 
 ### Changed
 
@@ -16,7 +16,7 @@
 - `devtools-entry.ts` + `vite.config.devtools.js`(신규) — DevTools 번들 엔트리/빌드. React external → `window.React` 단일 인스턴스, `G7DevToolsCore` 는 shim(`devtools/__runtime-shims/`)으로 메인 번들과 공유(재번들 0바이트, 싱글톤 동일성).
 - `core:build` — 엔진 + 편집기 + DevTools 3개 번들 순차 빌드. `--watch` 는 3개 `vite build --watch` 병렬.
 
-## [engine-v1.51.0] - 2026-07-01
+## [engine-v1.51.0] - 2026-07-02
 
 ### Changed
 
