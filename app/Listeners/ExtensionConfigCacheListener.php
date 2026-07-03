@@ -46,6 +46,12 @@ class ExtensionConfigCacheListener implements HookListenerInterface
             $hooks[$hookName] = [
                 'method' => 'onExtensionToggled',
                 'priority' => 30,
+                // config 캐시 재생성은 인프라 작업이라 큐로 미루면 안 된다. Action 훅의 기본
+                // 등록은 큐 디스패치(HookListenerRegistrar) 이므로, sync 를 명시하지 않으면
+                // 워커 미가동 환경에서 config:cache 가 재생성되지 않는다. 또한 확장 토글은
+                // CLI 커맨드(plugin:deactivate 등)로도 수행되며, 커맨드 프로세스는 실행 후
+                // 즉시 종료되어 큐에 쌓인 작업을 처리할 주체가 없다. 반드시 동기 실행한다.
+                'sync' => true,
             ];
         }
 
