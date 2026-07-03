@@ -121,7 +121,7 @@
                         "name": "Div",
                         "if": "{{_local.errors && Object.keys(_local.errors).length > 0}}",
                         "props": {
-                            "className": "alert-danger"
+                            "className": "alert-danger mb-6"
                         },
                         "children": [
                             {
@@ -147,7 +147,7 @@
                                                 "type": "basic",
                                                 "name": "H3",
                                                 "props": {
-                                                    "className": "text-sm font-mediumtext-danger-soft"
+                                                    "className": "text-sm font-medium text-danger-soft"
                                                 },
                                                 "text": "$t:sirsoft-page.admin.page.form.validation_error"
                                             },
@@ -961,7 +961,10 @@
                                 "actions": [
                                     {
                                         "type": "click",
-                                        "handler": "navigateBack"
+                                        "handler": "navigate",
+                                        "params": {
+                                            "path": "{{route?.id ? '/admin/pages/' + route.id : '/admin/pages'}}"
+                                        }
                                     }
                                 ],
                                 "children": [
@@ -980,7 +983,7 @@
                                 "props": {
                                     "type": "button",
                                     "disabled": "{{_local.saving}}",
-                                    "className": "{{_local.saving ? 'px-4 py-2 bg-blue-400 text-white rounded-lg font-medium cursor-not-allowed' : 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors'}}"
+                                    "className": "btn btn-primary flex-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                                 },
                                 "actions": [
                                     {
@@ -1083,6 +1086,15 @@
                                     }
                                 ],
                                 "children": [
+                                    {
+                                        "type": "basic",
+                                        "name": "Icon",
+                                        "if": "{{_local.saving}}",
+                                        "props": {
+                                            "name": "spinner",
+                                            "className": "spinner-sm"
+                                        }
+                                    },
                                     {
                                         "type": "basic",
                                         "name": "Span",
