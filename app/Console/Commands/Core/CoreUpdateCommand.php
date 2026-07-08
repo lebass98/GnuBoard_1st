@@ -15,6 +15,7 @@ use App\Extension\Traits\ClearsTemplateCaches;
 use App\Extension\Vendor\Exceptions\VendorInstallException;
 use App\Extension\Vendor\VendorMode;
 use App\Services\CoreUpdateService;
+use App\Support\ConfigCacheHelper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -27,6 +28,7 @@ class CoreUpdateCommand extends Command
     protected $signature = 'core:update
         {--force : 버전 비교 없이 강제 업데이트}
         {--no-backup : 백업 생성 건너뛰기}
+        {--prune : 코어가 제거한 파일 정리 + targets 전체 덮어쓰기(기존 방식). 미지정 시 코어가 실제 변경/추가한 파일만 적용하고 나머지는 보존}
         {--no-maintenance : 유지보수 모드 활성화 건너뛰기}
         {--local : 로컬 코드베이스를 업데이트 소스로 사용 (GitHub 스킵)}
         {--source= : 수동 업데이트용 소스 디렉토리 경로 (GitHub 다운로드 대신 지정 디렉토리 사용)}
@@ -345,6 +347,12 @@ class CoreUpdateCommand extends Command
             //
             // `--no-backup` 모드면 backupPath 가 null 이므로 manifest 생성을 스킵 — 롤백
             // 자체가 불가능한 모드이므로 기존 동작 유지.
+            // 증분 적용(3-way) 대상 목록. 백업 있음 + --prune 미지정 시에만 산출.
+            // null 로 남으면(백업 부재 또는 --prune) applyUpdate 가 전체 덮어쓰기로 회귀.
+            $applyList = null;
+            $applyStats = null;
+            $prune = (bool) $this->option('prune');
+
             if ($backupPath !== null) {
                 $bar->setMessage('신규 파일 manifest 생성 중...');
                 $log('신규 파일 manifest 생성 시작');
@@ -370,15 +378,51 @@ class CoreUpdateCommand extends Command
                         'error' => $manifestError->getMessage(),
                     ]);
                 }
+
+                // ── 증분 적용 대상 산출 (3-way) ──
+                // --prune 이면 전체 덮어쓰기이므로 산출 자체를 스킵.
+                if (! $prune) {
+                    try {
+                        $applyStats = CoreBackupHelper::computeApplyList(
+                            $backupPath,
+                            $pendingPath,
+                            (array) config('app.update.targets', []),
+                            (array) config('app.update.protected_paths', []),
+                            (array) config('app.update.excludes', []),
+                        );
+                        $applyList = $applyStats['apply'];
+                        $log(sprintf(
+                            '증분 적용 대상 산출 완료 (added=%d, changed=%d, total=%d)',
+                            $applyStats['added_count'],
+                            $applyStats['changed_count'],
+                            count($applyList),
+                        ));
+                    } catch (\Throwable $applyError) {
+                        // 산출 실패 시 안전하게 전체 덮어쓰기로 회귀 (applyList=null 유지)
+                        $applyList = null;
+                        $applyStats = null;
+                        $log("증분 적용 대상 산출 실패 (전체 덮어쓰기로 회귀): {$applyError->getMessage()}");
+                        Log::warning('코어 업데이트: 증분 적용 대상 산출 실패', [
+                            'error' => $applyError->getMessage(),
+                        ]);
+                    }
+                }
             }
 
             // ── Step 7: 파일 적용 ──
             $bar->setMessage(__('settings.core_update.step_apply'));
             $bar->advance();
-            $log('코어 파일 덮어쓰기 시작');
 
-            $service->applyUpdate($pendingPath, $onProgress);
-            $log('코어 파일 덮어쓰기 완료');
+            if ($prune) {
+                $log('코어 파일 덮어쓰기 시작 (--prune: 전체 덮어쓰기 + orphan 정리)');
+            } elseif ($applyList !== null) {
+                $log(sprintf('코어 파일 적용 시작 (증분: 코어 변경분 %d건만 적용, 나머지 보존)', count($applyList)));
+            } else {
+                $log('코어 파일 덮어쓰기 시작 (백업 부재 — 전체 덮어쓰기로 회귀)');
+            }
+
+            $service->applyUpdate($pendingPath, $onProgress, prune: $prune, applyList: $applyList);
+            $log('코어 파일 적용 완료');
 
             // ── Step 8: vendor 디렉토리 복사 (_pending → 운영) ──
             if ($composerSkipped) {
@@ -484,6 +528,13 @@ class CoreUpdateCommand extends Command
                 $maintenanceEnabled = false;
             }
 
+            // 모든 파일(코어 config/lang/vendor)이 안착한 뒤 config 캐시를 재생성한다.
+            // clearAllCaches() 는 흐름 중간에서 stale 캐시를 비우기만 하므로, 여기서
+            // 재생성하지 않으면 업데이트 후 config:cache 가 비활성 상태로 남아 이후 모든
+            // 요청이 config 파일을 재파싱한다(성능 손실). ConfigCacheHelper 는 설치 미완료
+            // 상태를 가드하고 실패를 안전하게 흡수한다.
+            ConfigCacheHelper::rebuild();
+
             $log('정리 완료');
 
             $bar->finish();
@@ -494,6 +545,9 @@ class CoreUpdateCommand extends Command
 
             $this->info("그누보드7 코어가 {$toVersion} 버전으로 업데이트되었습니다!");
             $this->newLine();
+
+            // ── 파일 적용 방식 요약 (부수의무: 설명의무) ──
+            $this->summarizeApplyMode($prune, $applyList, $applyStats);
 
             // _bundled 확장 일괄 업데이트 프롬프트 (번들에 신버전이 있을 때만 표시).
             //
@@ -593,7 +647,7 @@ class CoreUpdateCommand extends Command
             $this->line("  사유: {$e->reason}");
             $this->newLine();
             $this->info('나머지 스텝을 적용하려면 아래 명령을 실행하세요 (재다운로드 없이 스텝만 실행):');
-            $this->line("  {$resumeCommand}");
+            $this->surfaceResumeCommandWithPermissionGuidance($resumeCommand);
             $this->newLine();
             $this->warn('⚠ 위 명령을 실행하지 않으면 버전 표시는 최신이지만 일부 스텝이 미실행 상태로 남습니다.');
             $this->newLine();
@@ -1061,6 +1115,41 @@ class CoreUpdateCommand extends Command
     }
 
     /**
+     * 파일 적용 방식(증분/prune/fallback)과 통계를 사용자에게 요약 출력합니다.
+     *
+     * @param  bool  $prune  --prune 지정 여부
+     * @param  array<int, string>|null  $applyList  증분 적용 대상 목록 (null 이면 전체 덮어쓰기)
+     * @param  array{apply:array<int,string>, added_count:int, changed_count:int, has_symlink:bool}|null  $applyStats  computeApplyList 산출 통계
+     */
+    private function summarizeApplyMode(bool $prune, ?array $applyList, ?array $applyStats): void
+    {
+        if ($prune) {
+            $this->line(__('settings.core_update.apply_mode_prune'));
+            $this->newLine();
+
+            return;
+        }
+
+        if ($applyList === null) {
+            // 백업 부재 또는 산출 실패 → 전체 덮어쓰기로 회귀
+            $this->warn(__('settings.core_update.apply_mode_fallback'));
+            $this->newLine();
+
+            return;
+        }
+
+        // 증분 모드
+        $added = $applyStats['added_count'] ?? 0;
+        $changed = $applyStats['changed_count'] ?? 0;
+        $this->line(__('settings.core_update.apply_mode_incremental', [
+            'added' => $added,
+            'changed' => $changed,
+        ]));
+        $this->line(__('settings.core_update.apply_mode_incremental_prune_hint'));
+        $this->newLine();
+    }
+
+    /**
      * 업데이트 로그를 파일로 저장합니다.
      *
      * @param  array  $entries  로그 엔트리 목록
@@ -1170,6 +1259,125 @@ class CoreUpdateCommand extends Command
             'owner_uid' => $ownerUid,
             'owner_user' => $ownerUser,
         ]);
+    }
+
+    /**
+     * 업그레이드 스텝 재실행 명령을 실행 사용자 권한에 맞는 안내와 함께 출력합니다.
+     *
+     * 배경: sudo(root) 로 `core:update` 를 실행하면 업그레이드 스텝 spawn 자식이 root 로
+     * 돌아가고, 그 자식이 실패(proc_open 미지원 · 비정상 종료 · silent skip)하면 스텝이
+     * 미실행 상태로 남아 운영자에게 재실행을 안내한다. 이때 운영자가 안내받은 명령을 그대로
+     * root 로 재실행하면 스텝이 만드는 파일·캐시가 root 소유로 생성되어, 이후 웹서버
+     * (php-fpm www-data 등) 요청이 그 경로에 쓰기 실패한다.
+     *
+     * 실행 환경을 4가지로 분기해 안내한다:
+     *  1. non-root (일반 SSH 사용자 = 파일 소유자) 또는 posix 미지원(Windows 등)
+     *     → 명령만 그대로 안내 (권한 분기 불필요, 공유 호스팅 = 웹서버·PHP·실행 유저 동일 포함).
+     *  2. root 실행 + 웹서버 계정 식별 가능 + 실행 사용자와 다름
+     *     → `sudo -u {webUser}` 로 재실행 안내 + root 그대로 실행 시 위험 경고.
+     *  3. root 실행 + 웹서버 계정을 root 로 추정 (root 로 서비스하는 비표준/컨테이너 구성)
+     *     → 권한 문제 없으므로 명령만 그대로 안내.
+     *  4. root 실행 + 웹서버 계정 식별 불가 (스냅샷/추정 실패)
+     *     → 명령 그대로 안내하되 "웹서버 계정으로 실행" 일반 경고 (계정명 미상).
+     *
+     * @param  string  $resumeCommand  재실행할 `core:execute-upgrade-steps` 명령
+     */
+    private function surfaceResumeCommandWithPermissionGuidance(string $resumeCommand): void
+    {
+        [$mode, $webUser] = $this->classifyResumeExecutionContext();
+
+        $this->renderResumeGuidance($resumeCommand, $mode, $webUser);
+    }
+
+    /**
+     * 실행 환경 모드에 따라 재실행 명령과 권한 안내를 콘솔에 출력합니다.
+     *
+     * `classifyResumeExecutionContext()` 판정 결과를 입력으로 받아 출력만 담당한다 —
+     * posix/파일시스템 상태에 의존하지 않으므로 4가지 모드 전부 결정적으로 테스트 가능하다.
+     *
+     * @param  string  $resumeCommand  재실행할 `core:execute-upgrade-steps` 명령
+     * @param  string  $mode  `classifyResumeExecutionContext()` 가 반환한 실행 환경 모드
+     * @param  string|null  $webUser  웹서버 계정명 (`root_web_known` 일 때만 유효)
+     */
+    private function renderResumeGuidance(string $resumeCommand, string $mode, ?string $webUser): void
+    {
+        // 케이스 1·3: 권한 분기 불필요 — 명령만 그대로 안내.
+        //  - non_root: 일반 SSH 사용자 / 공유 호스팅(웹서버=PHP=실행 유저 동일) / posix 미지원
+        //  - root_web_symmetric: root 로 서비스하는 구성 → 재실행도 root 로 무해
+        if ($mode === 'non_root' || $mode === 'root_web_symmetric') {
+            $this->line("  {$resumeCommand}");
+
+            return;
+        }
+
+        // 케이스 2: root 실행 + 웹서버 계정 식별 → 웹서버 권한 재실행 안내.
+        if ($mode === 'root_web_known' && $webUser !== null) {
+            $this->line("  sudo -u {$webUser} {$resumeCommand}");
+            $this->newLine();
+            $this->warn('⚠ 현재 sudo(root) 로 실행 중입니다. 위 명령을 root 로 그대로 실행하면 업그레이드');
+            $this->warn("  스텝이 생성하는 파일이 root 소유가 되어 이후 웹서버({$webUser}) 요청이 쓰기 실패할 수");
+            $this->warn("  있습니다. 반드시 웹서버 계정({$webUser})으로 재실행하세요.");
+
+            return;
+        }
+
+        // 케이스 4: root 실행 + 웹서버 계정 식별 불가 — 계정명 미상 상태의 일반 경고.
+        $this->line("  sudo -u <웹서버계정> {$resumeCommand}");
+        $this->newLine();
+        $this->warn('⚠ 현재 sudo(root) 로 실행 중입니다. 웹서버 계정을 자동으로 식별하지 못했습니다.');
+        $this->warn('  위 명령을 root 로 그대로 실행하면 업그레이드 스텝이 생성하는 파일이 root 소유가 되어');
+        $this->warn('  이후 웹서버(php-fpm) 요청이 쓰기 실패할 수 있습니다. 웹서버 계정(예: www-data,');
+        $this->warn('  nginx, apache)을 확인해 그 계정으로 재실행하세요.');
+    }
+
+    /**
+     * 재실행 안내의 실행 환경을 분류합니다.
+     *
+     * 반환하는 모드:
+     *  - `non_root`           : posix 미지원 또는 현재 유효 사용자가 root 가 아님
+     *                           (일반 SSH 사용자 = 파일 소유자, 공유 호스팅 대칭 구성 포함).
+     *  - `root_web_known`     : root 실행 + 웹서버 계정 식별 성공 + 실행 사용자(root)와 다름.
+     *  - `root_web_symmetric` : root 실행 + 웹서버 계정이 root 로 추정됨 (root 서비스 구성).
+     *  - `root_web_unknown`   : root 실행 + 웹서버 계정 추정 실패 (스냅샷/추정 불가).
+     *
+     * 웹서버 계정은 `FilePermissionHelper::inferWebServerOwnership()` 이 storage/bootstrap
+     * 쓰기 영역 소유자로 추정한다.
+     *
+     * @return array{0: string, 1: string|null} [모드, 웹서버 계정명 또는 null]
+     */
+    private function classifyResumeExecutionContext(): array
+    {
+        if (! function_exists('posix_geteuid') || ! function_exists('posix_getpwuid')) {
+            return ['non_root', null];
+        }
+
+        // root(sudo) 실행이 아니면 일반 SSH 사용자 = 파일 소유자 → 권한 분기 안내 불필요.
+        // (공유 호스팅에서 웹서버·PHP·실행 유저가 같은 경우도 여기서 non_root 로 처리됨.)
+        if (posix_geteuid() !== 0) {
+            return ['non_root', null];
+        }
+
+        [$owner] = FilePermissionHelper::inferWebServerOwnership();
+
+        // 추정 실패 (스냅샷 불가) — 계정명 미상 경고 경로.
+        if ($owner === false) {
+            return ['root_web_unknown', null];
+        }
+
+        // 웹서버 계정이 root 로 추정됨 — root 로 서비스하는 구성이라 재실행도 root 로 무해.
+        if ($owner === 0) {
+            return ['root_web_symmetric', null];
+        }
+
+        $entry = posix_getpwuid($owner);
+        $name = $entry['name'] ?? null;
+
+        // uid 는 나왔지만 이름 해석 실패 — 미상 경로로 처리 (uid 노출은 오히려 혼란).
+        if ($name === null) {
+            return ['root_web_unknown', null];
+        }
+
+        return ['root_web_known', $name];
     }
 
     /**

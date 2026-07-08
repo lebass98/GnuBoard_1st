@@ -111,7 +111,8 @@
 ├─ Step 4:  다운로드 (GitHub zipball 또는 --source/--local에서 복사)
 ├─ Step 5:  백업 생성 (--no-backup 시 스킵)
 ├─ Step 6:  Composer install (_pending에서 실행, 변경 없으면 스킵)
-├─ Step 7:  파일 적용 (_pending → base_path 선택적 덮어쓰기)
+├─ Step 6.5: 신규 파일 manifest 생성 + 증분 적용 대상(3-way) 산출 (백업 있을 때)
+├─ Step 7:  파일 적용 (_pending → base_path, 기본=코어 변경분만 / --prune=전체 덮어쓰기)
 ├─ Step 8:  vendor 복사 (_pending/vendor → base_path/vendor, Step 6 스킵 시 함께 스킵)
 ├─ Step 9:  마이그레이션 + 동기화 (migrate, roles, permissions, menus, mail templates)
 ├─ Step 10: 업그레이드 스텝 실행 (upgrades/Upgrade_X_Y_Z.php)
@@ -178,15 +179,48 @@ v접두사 자동 감지 (resolveGithubArchiveUrl):
 
 > Vendor 번들 시스템 상세: [docs/extension/vendor-bundle.md](../extension/vendor-bundle.md)
 
+### Step 6.5: 신규 파일 manifest + 증분 적용 대상 산출
+
+```text
+백업이 있을 때(--no-backup 아님)만 수행:
+
+1. writeNewFilesManifest() — 자동 롤백용 `_new_files_manifest.json` 기록
+   (base=백업 vs theirs=_pending: 신 버전이 추가한 파일/디렉토리 목록)
+
+2. computeApplyList() — 기본(증분) 모드의 3-way 적용 대상 산출 (--prune 시 스킵)
+   · base   = 구버전 원본 = 백업 스냅샷
+   · theirs = 신 버전     = _pending
+   · base 없음 → added / size·md5 다름 → changed / 동일 → 제외(스킵)
+   · size 선필터 후 size 동일할 때만 md5 (mtime 비교 안 함 — _pending 은 추출 시각)
+   · symlink / excludes / protected_paths 하위 → 목록 제외
+   · 단, targets 에 더 구체적으로 명시된 경로는 상위 protected 를 오버라이드(아래 주석)
+```
+
+> **protected_paths 오버라이드 (공개 #64 / 내부 #452)**: `protected_paths` 에는 확장 부모(`modules`·`plugins`·`templates`·`lang-packs`)가 포함되지만, `targets` 에는 `{domain}/_bundled` 가 명시된다. 3-way 산출(`computeApplyList`)과 신규 파일 manifest(`writeNewFilesManifest`)는 "targets 에 더 구체적(하위)으로 명시된 경로가 상위 protected 를 오버라이드"하도록 판정한다. 이로써 코어 배포본에 포함된 번들 확장의 갱신 파일(`_bundled/{id}/composer.json`·`vendor-bundle.json` 등)이 코어 업데이트로 정상 반영된다. 오버라이드는 target 이 protected 보다 **더 깊을 때만** 적용되므로, `storage`(target) == `storage`(protected) 같은 동일 경로는 여전히 제외된다. 확장 부모를 protected 에 둔 원래 의도(자동 발견 폴백이 활성 서브디렉토리 `modules/sirsoft-*` 를 삭제하는 #347 방어)는 그대로 유지된다 — 자동 발견 폴백은 targets 순회가 아니므로 오버라이드 영향을 받지 않는다.
+
 ### Step 7: 파일 적용
 
 ```text
-- _pending 소스에서 config('app.update.targets') 에 해당하는 파일/디렉토리 선택적 덮어쓰기
+기본(증분) 모드 — --prune 미지정 + 백업 있음:
+- Step 6.5 의 applyList(코어가 실제 변경/추가한 파일)에 있는 파일만 적용
+- 코어가 건드리지 않은 파일은 복사·chmod·chown·mtime 갱신을 전부 스킵 → 현재 디스크
+  상태(사용자 수정 포함 가능)를 그대로 보존
+- orphan(소스에 없는 대상 파일) 삭제 안 함 → 사용자가 추가한 신규 파일 보존
+
+--prune 모드 (또는 백업 부재 fallback):
+- targets 전체 무조건 덮어쓰기 + orphan 삭제 (기존 동작)
+- 백업 부재 시 base 가 없어 3-way 불가 → 안전하게 전체 덮어쓰기로 회귀 + 안내 출력
+
+공통:
 - 자동 발견 폴백: targets 에 미등재된 source 최상위 항목도 스캔하여 적용
   (config('app.update.protected_paths') 와 config('app.update.excludes') 매치 시 스킵)
 - FilePermissionHelper::copyDirectory() 사용 → 원본 파일 권한 보존
 - ExtensionPendingHelper::copyToActive() 미사용 (권한 유실 방지)
 ```
+
+> **기본 동작 변경 배경 (공개 #64)**: 이전에는 Step 7 이 targets 전체를 무조건 재복사하고 orphan 을 삭제하여, 사용자가 수정한 `public/.htaccess` 커스텀 블록이나 `_bundled/` 아래 커스텀 확장이 소실되는 사고가 반복 제보되었다. 기본 동작을 "코어가 실제로 변경/추가한 파일만 적용(3-way)"으로 전환해 발생 표면을 제거했다. 전체 덮어쓰기 + 정리를 원하면 `--prune` 을 지정한다. "코어도 바꾸고 사용자도 바꾼" 파일은 코어 버전으로 갱신되지만 백업에 원본이 보존되어 복구 가능하다.
+
+> **증분 모드 잔존 stale 파일 정리**: 기본(증분) 모드는 orphan 을 삭제하지 않으므로, 신 버전에서 제거된 파일이 활성 디렉토리에 잔존할 수 있다. 완료 요약이 잔존을 안내하며, 정리하려면 다음 업데이트를 `--prune` 으로 실행하거나 단발성 정리 도구 `php artisan hotfix:rollback-stale-files --prune` 을 사용한다 (진단 모드 기본, `--prune` 시 확인 프롬프트 후 정리, symlink/protected_paths 가드 적용). 상세 사용법: [docs/cheatsheet.md](../cheatsheet.md) "단발성 결함 보정 (hotfix)".
 
 > **자동 발견 폴백의 배경 (engine-v / beta.4 이후)**: Step 7 은 부모 프로세스의 `config('app.update.targets')` 를 사용한다. 부모는 업그레이드 *직전* 의 코드/메모리 상태이므로 신버전이 도입한 신규 최상위 디렉토리(예: beta.4 의 `lang-packs/`) 가 부모의 stale targets 에서 누락된다. 폴백은 이 결함을 안전망으로 차단하며, `config/app.php` 의 `update.protected_paths` 가 런타임 데이터(`storage`)·로컬 환경(`.env*`)·별도 파이프라인 산출물(`vendor`)·개발 메타(`.git`/`.claude`/`.serena` 등) 의 의도치 않은 덮어쓰기를 방지한다.
 
@@ -216,6 +250,21 @@ v접두사 자동 감지 (resolveGithubArchiveUrl):
 > **spawn 자식 진입 시 PSR-4 autoload 갱신 (engine-v / beta.4 이후)**: `core:execute-upgrade-steps` (Step 10) 와 `core:execute-bundled-updates` (Step 12) 의 spawn 자식은 `handle()` 진입 직후 `app(ExtensionManager::class)->updateComposerAutoload()` 를 1회 호출한다. 부모 프로세스의 `bootstrap/cache/autoload-extensions.php` 가 stale 한 경우 자식이 그 매핑을 그대로 로드 → upgrade step 또는 bundled update 안에서 모듈/플러그인의 `Models`/`Services` 같은 다른 클래스를 lazy autoload 시 "Class not found" 발생. 진입 시점 1회 호출로 모든 후속 작업이 fresh autoload 환경에서 실행됨을 보장한다 (개별 step 마다 호출할 필요 없음). 본 진입점들은 자체가 spawn 자식 (별개 PHP 프로세스) 이라 디스크의 fresh `ExtensionManager` 클래스를 메모리에 로드한 상태 — 직접 메서드 호출도 stale 가능성 없음.
 
 > **단독 실행 안전성 (beta.6 이후)**: `core:execute-upgrade-steps` 는 HANDOFF 안내 또는 수동 복구 목적으로 운영자가 직접 호출되는 경로가 있다. 단독 실행 시 자식은 기본값으로 부모 Step 9 (`runMigrations` + `reloadCoreConfigAndResync`), Step 11 (`updateVersionInEnv` + `clearAllCaches`), Step 12 (번들 확장 일괄 업데이트) 를 자체적으로 수행해 단일 명령으로 업그레이드를 완결한다. 부모 `CoreUpdateCommand::spawnUpgradeStepsProcess()` 는 자식 명령 라인에 `--skip-migrations`, `--skip-resync`, `--skip-version-env`, `--skip-cache-clear`, `--skip-bundled-updates` 5개를 무조건 추가해 중복 회피한다 — 부모가 자식 종료 후 동일 단계를 직접 수행하기 때문이다.
+
+#### 재실행 안내의 권한 분기 (핸드오프 catch)
+
+spawn 자식이 실패(`proc_open` 미지원 · 비정상 종료 · silent skip)하고 `spawn_failure_mode=abort`(기본값) 이면, 파일·버전은 이미 `toVersion` 으로 반영되지만 업그레이드 스텝이 미실행 상태로 남아 운영자에게 `core:execute-upgrade-steps` 재실행을 안내한다. 이때 **sudo(root) 로 `core:update` 를 실행한 경우**, 안내받은 명령을 root 로 그대로 재실행하면 스텝이 만드는 파일·캐시가 root 소유로 생성되어 이후 웹서버(php-fpm www-data 등) 요청이 그 경로에 쓰기 실패한다.
+
+`CoreUpdateCommand::surfaceResumeCommandWithPermissionGuidance()` 는 실행 환경을 4가지로 분류(`classifyResumeExecutionContext()`)하여 안내를 분기한다:
+
+| 모드 | 조건 | 안내 |
+|------|------|------|
+| `non_root` | root 아님(일반 SSH 사용자 = 파일 소유자) / posix 미지원(Windows) / 공유 호스팅(웹서버·PHP·실행 유저 동일) | 명령만 그대로 출력 |
+| `root_web_known` | root 실행 + 웹서버 계정 식별 가능 + 실행 사용자와 다름 | `sudo -u {계정} {명령}` + 계정명 명시 경고 |
+| `root_web_symmetric` | root 실행 + 웹서버 계정이 root 로 추정 (root 서비스 구성) | 명령만 그대로 출력 |
+| `root_web_unknown` | root 실행 + 웹서버 계정 추정 실패 | `sudo -u <웹서버계정>` placeholder + 계정 확인 안내 |
+
+웹서버 계정은 `FilePermissionHelper::inferWebServerOwnership()` 이 `storage/*`·`bootstrap/cache` 쓰기 영역 소유자로 추정한다.
 
 ### Step 11: 마무리
 
@@ -616,12 +665,13 @@ config('app.version') = env('APP_VERSION', 'config/app.php 기본값')
 |--------|---------|------|
 | `createBackup()` | `(?Closure $onProgress): string` | CoreBackupHelper로 백업 생성 |
 | `restoreFromBackup()` | `(string $backupPath, ?Closure $onProgress): void` | 백업에서 파일 복원 |
+| `CoreBackupHelper::computeApplyList()` | `(string $backupPath, string $sourcePath, array $targets, array $protectedPaths, array $excludes): array` | 3-way 판정으로 증분 적용 대상(added/changed) 산출 (`apply`, `added_count`, `changed_count`, `has_symlink`). targets 에 명시된 `{domain}/_bundled` 는 상위 protected(`modules` 등)를 오버라이드해 목록에 포함 (공개 #64 / 내부 #452) |
 
 ### 적용 및 설치
 
 | 메서드 | 시그니처 | 설명 |
 |--------|---------|------|
-| `applyUpdate()` | `(string $sourcePath, ?Closure $onProgress): void` | _pending → base_path 선택적 덮어쓰기 |
+| `applyUpdate()` | `(string $sourcePath, ?Closure $onProgress, bool $prune = false, ?array $applyList = null): void` | _pending → base_path 적용. `$applyList` 지정 + `!$prune` 이면 증분(코어 변경분만), 그 외 전체 덮어쓰기 + orphan 삭제 |
 | `runComposerInstallInPending()` | `(string $pendingPath, ?Closure $onProgress): void` | _pending에서 composer install (--no-scripts) |
 | `isComposerUnchangedForCore()` | `(string $pendingPath): bool` | composer.json/lock MD5 비교 |
 | `runComposerInstall()` | `(?Closure $onProgress): void` | base_path에서 composer install |
@@ -663,13 +713,14 @@ config('app.version') = env('APP_VERSION', 'config/app.php 기본값')
 ### core:update
 
 ```bash
-php artisan core:update [--force] [--no-backup] [--no-maintenance] [--local] [--source={path}]
+php artisan core:update [--force] [--no-backup] [--prune] [--no-maintenance] [--local] [--source={path}]
 ```
 
 | 옵션 | 설명 |
 |------|------|
 | `--force` | 버전 비교 스킵, 동일 버전이어도 강제 업데이트 |
-| `--no-backup` | 백업 생성 스킵 (Step 5) |
+| `--no-backup` | 백업 생성 스킵 (Step 5). 증분 적용 불가 → 전체 덮어쓰기로 회귀 |
+| `--prune` | 코어가 제거한 파일 정리 + targets 전체 덮어쓰기(기존 방식). 미지정 시 코어가 실제 변경/추가한 파일만 적용(3-way)하고 나머지는 보존 |
 | `--no-maintenance` | 유지보수 모드 스킵 (Step 3) |
 | `--local` | 현재 코드베이스를 소스로 사용 (GitHub 스킵) |
 | `--source={path}` | 지정 디렉토리를 소스로 사용 (GitHub 스킵) |
