@@ -4,6 +4,16 @@ All notable changes to this plugin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.1] - 2026-07-09
+
+### Changed
+
+- 라이브 가맹점 MID 프리픽스를 이니시스 정책 변경에 맞춰 SRB 로 갱신했습니다 (설정 화면 고정 프리픽스 표시·입력 안내 문구 포함).
+
+### Fixed
+
+- 라이브 자격증명 입력칸(라이브 MID·라이브 API 키)에 브라우저 자동완성으로 계정 이메일 등 의도치 않은 값이 자동으로 채워지던 문제를 수정했습니다. 잘못 채워진 값이 저장되어 라이브 본인인증이 실패하는 상황을 방지합니다.
+
 ## [1.0.0] - 2026-07-01
 
 ### Changed
