@@ -252,6 +252,17 @@ class ApiDocSampleService implements ApiDocSampleSeeder
     /**
      * 완전한 언어팩 샘플(manifest 채움)을 생성합니다.
      *
+     * `scope=core` + `status=active` 조합은 그 locale 을 시스템 전역 지원 로케일로 승격시킨다
+     * (LanguagePackRepository::getActiveCoreLocales → refreshSupportedLocales →
+     * config('app.supported_locales'/'app.translatable_locales')).
+     *
+     * 문서용 샘플은 조회 예시를 만들기 위한 것이지 시스템 동작을 바꿀 자격이 없다. 샘플이 그
+     * 경로를 타면 이후 시드/저장되는 모든 다국어 데이터에 실재하지 않는 로케일 키가 박히고,
+     * 샘플을 비활성화한 뒤에는 그 키가 검증(TranslatableField)을 통과하지 못해 저장이 막힌다.
+     *
+     * 따라서 승격 경로를 벗어난 조합(module 스코프 + installed 상태)으로 생성하며, locale 도
+     * 실재하는 번들 로케일만 사용한다.
+     *
      * @return array{model: class-string, key: string, value: string} 대표 레코드 정보
      */
     private function seedLanguagePack(): array
@@ -264,27 +275,27 @@ class ApiDocSampleService implements ApiDocSampleSeeder
             $pack = LanguagePack::create([
                 'identifier' => 'apidoc-sample-lang',
                 'vendor' => 'apidoc',
-                'scope' => 'core',
-                'target_identifier' => null,
-                'locale' => 'fr',
-                'locale_name' => 'French',
-                'locale_native_name' => 'Français',
+                'scope' => 'module',
+                'target_identifier' => 'apidoc-sample-module',
+                'locale' => 'ja',
+                'locale_name' => 'Japanese',
+                'locale_native_name' => '日本語',
                 'text_direction' => 'ltr',
                 'version' => '1.0.0',
                 'latest_version' => '1.0.0',
                 'license' => 'MIT',
                 'description' => ['ko' => '문서 실측용 언어팩', 'en' => 'Sample language pack'],
-                'status' => 'active',
+                'status' => 'installed',
                 'is_protected' => false,
                 'manifest' => [
                     'name' => ['ko' => 'API 문서 샘플 언어팩', 'en' => 'API Doc Sample Pack'],
                     'version' => '1.0.0',
-                    'locale' => 'fr',
+                    'locale' => 'ja',
                 ],
                 'source_type' => 'bundled',
                 'installed_by' => $installer?->id,
                 'installed_at' => now()->subDays(3),
-                'activated_at' => now()->subDays(3),
+                'activated_at' => null,
             ]);
         }
 

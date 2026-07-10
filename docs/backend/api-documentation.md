@@ -289,6 +289,27 @@ php artisan api:docgen --scope=core --dry-run
 - 확장에 새 PHP 클래스를 추가했으므로 `_bundled` 작업 후 `{type}:update {id} --force` 로 활성 디렉토리에
   반영해야 오토로드된다.
 
+#### 샘플은 시스템 동작을 바꾸지 않는다
+
+`--seed` 로 만든 샘플 레코드는 개발 DB 에 영구 잔존한다. 조회 예시를 만들기 위한 데이터일 뿐이므로,
+전역 설정을 읽는 쿼리에 걸리는 조합으로 생성해서는 안 된다.
+
+| ❌ 금지 | ✅ 올바른 사용 |
+| --- | --- |
+| `LanguagePack::create(['scope' => 'core', 'status' => 'active', ...])` | `['scope' => 'module', 'target_identifier' => '...', 'status' => 'installed']` |
+| 실재하지 않는 로케일/통화/국가 코드를 샘플 값으로 사용 | 실재하는 번들 값만 사용 (`ja` 등) |
+
+`scope=core` + `status=active` 조합은 `LanguagePackRepository::getActiveCoreLocales()` 의 승격 쿼리와
+일치한다. 걸리면 그 locale 이 `config('app.supported_locales')` / `config('app.translatable_locales')` 로
+올라가 시스템 전역이 바뀐다. 그 아래에서 시드·저장되는 모든 다국어 데이터에 실재하지 않는 로케일 키가
+박히고, 샘플을 비활성화한 뒤에는 그 키가 `TranslatableField` 검증을 통과하지 못해 해당 엔티티의 저장이
+막힌다. 오염 시점과 증상 발현 시점이 떨어져 있어 원인 추적이 어렵다.
+
+같은 원리로 `is_default` / `status=active` 같은 승격·활성 플래그를 샘플에 붙이지 않는다. 샘플 레코드를
+만들기 전에 "이 조합이 전역 설정을 읽는 쿼리에 걸리는가" 를 확인한다.
+
+자동 차단: audit 룰 `apidoc-sample-no-global-active-language-pack` (severity: error).
+
 ### 설명 백필 커맨드 (`api:docgen-backfill-*`)
 
 파라미터/응답 필드 표의 `<!-- TODO: 설명 -->` 셀 중 **도메인 무관 공통 필드**(페이지네이션·정렬·검색·

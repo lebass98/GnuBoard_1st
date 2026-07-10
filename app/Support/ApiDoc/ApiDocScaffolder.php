@@ -127,6 +127,11 @@ class ApiDocScaffolder
     private const GEN_KEY_INDEX = 'api-readme-index';
 
     /**
+     * @var string 코어 README 의 확장 API 목차 섹션 헤딩 (사람 서술 보존 경계)
+     */
+    private const EXTENSIONS_HEADING = '확장 API 레퍼런스';
+
+    /**
      * 대상(코어/확장)의 API 문서 디렉토리 목차(README.md)를 생성합니다.
      *
      * 도메인 파일별 링크 + 엔드포인트 수를 표로 나열해, 처음 진입한 개발자/AI 가 이 대상의
@@ -245,7 +250,7 @@ class ApiDocScaffolder
         });
 
         $lines = [];
-        $lines[] = '## 확장 API 레퍼런스';
+        $lines[] = '## '.self::EXTENSIONS_HEADING;
         $lines[] = '';
         $lines[] = '> 각 확장이 자신의 API 문서를 소유합니다. 아래 표는 자동 생성됩니다.';
         $lines[] = '';
@@ -995,7 +1000,8 @@ class ApiDocScaffolder
         $afterGen = substr($existing, $endPos + strlen(self::GEN_END));
 
         // 확장 목차 섹션(`## 확장 API 레퍼런스`)부터는 생성 블록 소관이므로 제외한다.
-        $nextSection = preg_match('/\n## /', $afterGen, $m, PREG_OFFSET_CAPTURE)
+        // 임의의 `## ` 헤딩에서 자르면 사람이 덧붙인 헤딩 섹션이 재생성 때마다 통째로 소실된다.
+        $nextSection = preg_match('/\n## '.preg_quote(self::EXTENSIONS_HEADING, '/').'/', $afterGen, $m, PREG_OFFSET_CAPTURE)
             ? $m[0][1]
             : strlen($afterGen);
 
