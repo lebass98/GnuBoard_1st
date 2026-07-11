@@ -170,8 +170,11 @@ class VendorBundler
     {
         $outputPath ??= $sourcePath;
 
-        $composerJsonPath = $sourcePath.DIRECTORY_SEPARATOR.'composer.json';
-        if (file_exists($composerJsonPath) && ! $this->hasExternalDependencies($composerJsonPath)) {
+        // 의존성 판정도 build() 와 같은 파일을 본다 (출력 우선, 없으면 소스 폴백).
+        // 소스만 보면 _bundled 에 외부 패키지를 처음 추가한 상태를 "의존성 없음" 으로
+        // 오판해 재빌드가 필요 없다고 답한다.
+        $composerJsonPath = $this->resolveHashTarget($sourcePath, $outputPath, 'composer.json');
+        if ($composerJsonPath !== null && ! $this->hasExternalDependencies($composerJsonPath)) {
             return false;
         }
 
@@ -247,12 +250,20 @@ class VendorBundler
      */
     private function build(string $sourcePath, string $outputPath, string $target, bool $force): VendorBundleResult
     {
-        // 전제 조건 검증
-        $composerJsonPath = $sourcePath.DIRECTORY_SEPARATOR.'composer.json';
-        if (! file_exists($composerJsonPath)) {
+        // 빌드가 사용하는 composer.json/lock 은 **출력(_bundled) 우선, 없으면 소스 폴백** 이다
+        // ({@see resolveHashTarget()}). 설치 입력·해시 기준·런타임 검증이 모두 같은 파일을
+        // 보아야 한다.
+        //
+        // 개발자는 규정상 `_bundled` 에서만 작업하므로 새 패키지를 추가하면 `_bundled` 의
+        // composer.json/lock 에만 반영되고 활성 디렉토리는 구버전으로 남는다. 설치 입력만
+        // 활성에서 가져오면 구버전 lock 으로 install 한 zip 에 신버전 해시가 붙어, 무결성은
+        // 통과하는데 새 패키지가 번들에서 누락된다 (런타임에 클래스 not found).
+        // 코어는 source == output 이므로 항상 같은 파일이다.
+        $composerJsonPath = $this->resolveHashTarget($sourcePath, $outputPath, 'composer.json');
+        if ($composerJsonPath === null) {
             throw new VendorInstallException(
                 errorKey: 'composer_json_not_found',
-                context: ['path' => $composerJsonPath],
+                context: ['path' => $sourcePath.DIRECTORY_SEPARATOR.'composer.json'],
             );
         }
 
@@ -309,12 +320,14 @@ class VendorBundler
             @unlink($tmpManifestPath);
         }
 
+        // 설치 입력 = 해시 기준과 동일한 파일 (출력 우선, 없으면 소스 폴백).
+        $composerLockPath = $this->resolveHashTarget($sourcePath, $outputPath, 'composer.lock');
+
         try {
             // 1. composer.json + composer.lock 을 스테이징으로 복사
             File::copy($composerJsonPath, $stagingDir.DIRECTORY_SEPARATOR.'composer.json');
-            $sourceLockPath = $sourcePath.DIRECTORY_SEPARATOR.'composer.lock';
-            if (file_exists($sourceLockPath)) {
-                File::copy($sourceLockPath, $stagingDir.DIRECTORY_SEPARATOR.'composer.lock');
+            if ($composerLockPath !== null) {
+                File::copy($composerLockPath, $stagingDir.DIRECTORY_SEPARATOR.'composer.lock');
             }
 
             // 2. 스테이징에서 composer install --no-dev 실행
@@ -338,25 +351,22 @@ class VendorBundler
                 ? $this->collectPackages($stagedLockPath)
                 : [];
 
-            // manifest 의 해시는 **출력 디렉토리** 의 composer.json/lock 기준.
+            // manifest 의 해시는 설치 입력과 **동일한** composer.json/lock 기준 (출력 우선).
             // manifest·zip·composer.json 이 함께 배포되는 곳이 출력 디렉토리이며,
             // 런타임 검증도 그 디렉토리를 대조한다 ({@see resolveHashTarget()}).
-            $hashJsonPath = $this->resolveHashTarget($sourcePath, $outputPath, 'composer.json');
-            $hashLockPath = $this->resolveHashTarget($sourcePath, $outputPath, 'composer.lock');
-
             $manifest = [
                 'schema_version' => self::SCHEMA_VERSION,
                 'generated_at' => date('c'),
                 'generator' => 'g7 vendor-bundle:build',
                 'target' => $target,
-                'composer_json_sha256' => $this->integrityChecker->computeFileHash($hashJsonPath ?? $composerJsonPath),
-                'composer_lock_sha256' => $hashLockPath !== null
-                    ? $this->integrityChecker->computeFileHash($hashLockPath)
+                'composer_json_sha256' => $this->integrityChecker->computeFileHash($composerJsonPath),
+                'composer_lock_sha256' => $composerLockPath !== null
+                    ? $this->integrityChecker->computeFileHash($composerLockPath)
                     : null,
                 'zip_sha256' => $this->integrityChecker->computeFileHash($tmpZipPath),
                 'zip_size' => $zipSize,
                 'package_count' => count($packages),
-                'php_requirement' => $this->extractPhpRequirement($hashJsonPath ?? $composerJsonPath),
+                'php_requirement' => $this->extractPhpRequirement($composerJsonPath),
                 'g7_version' => config('app.version'),
                 'packages' => $packages,
             ];

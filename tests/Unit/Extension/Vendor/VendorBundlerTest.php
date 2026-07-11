@@ -292,6 +292,102 @@ class VendorBundlerTest extends TestCase
     }
 
     /**
+     * 분리 구조에서 composer install 의 입력(staging 에 복사되는 composer.json/lock)도
+     * **출력(_bundled)** 기준이어야 합니다.
+     *
+     * 개발자는 규정상 `_bundled` 에서만 작업하므로, 새 패키지를 추가하면 `_bundled/composer.json`
+     * 과 `_bundled/composer.lock` 에만 반영되고 활성 디렉토리는 구버전으로 남는다. 이때 설치 소스를
+     * 활성에서 가져오면 **구버전 lock 으로 install 한 zip** 에 **신버전 해시**를 붙인 manifest 가
+     * 만들어져, 무결성 검증은 통과하는데 정작 새 패키지가 번들에 빠지는 상태가 된다
+     * (런타임에 클래스 not found). 설치 입력과 해시 기준이 같은 디렉토리를 보아야 한다.
+     */
+    public function test_build_installs_from_output_composer_lock_not_source(): void
+    {
+        $sourceDir = $this->testDir.'/active';
+        $outputDir = $this->testDir.'/bundled';
+        File::ensureDirectoryExists($sourceDir);
+        File::ensureDirectoryExists($outputDir);
+
+        // 활성 — 구버전: 패키지 1개 (아직 update 미반영)
+        File::put($sourceDir.'/composer.json', json_encode([
+            'name' => 'test/project',
+            'require' => ['php' => '^8.2', 'test/lib' => '^1.0'],
+        ]));
+        File::put($sourceDir.'/composer.lock', json_encode([
+            'packages' => [
+                ['name' => 'test/lib', 'version' => '1.0.0', 'type' => 'library'],
+            ],
+        ]));
+
+        // _bundled — 신버전: 개발자가 새 패키지(test/newpkg)를 추가한 상태
+        File::put($outputDir.'/composer.json', json_encode([
+            'name' => 'test/project',
+            'require' => ['php' => '^8.2', 'test/lib' => '^1.0', 'test/newpkg' => '^2.0'],
+        ]));
+        File::put($outputDir.'/composer.lock', json_encode([
+            'packages' => [
+                ['name' => 'test/lib', 'version' => '1.0.0', 'type' => 'library'],
+                ['name' => 'test/newpkg', 'version' => '2.0.0', 'type' => 'library'],
+            ],
+        ]));
+
+        $this->invokeBuild('test:new-package', sourcePath: $sourceDir, outputPath: $outputDir);
+
+        $manifest = json_decode(File::get($outputDir.'/vendor-bundle.json'), true);
+        $names = array_column($manifest['packages'], 'name');
+
+        // manifest 의 packages 는 staging 에 복사된 lock 에서 추출되므로,
+        // 이 단언이 곧 "어느 lock 으로 install 했는가" 를 판정한다.
+        $this->assertContains(
+            'test/newpkg',
+            $names,
+            '_bundled 에 추가한 새 패키지가 번들에 포함되어야 합니다 (설치 소스가 활성이면 누락됨).'
+        );
+        $this->assertSame(
+            2,
+            $manifest['package_count'],
+            'package_count 는 _bundled/composer.lock 기준(2)이어야 합니다.'
+        );
+
+        // 해시 기준과 설치 입력이 같은 디렉토리를 보므로 무결성도 정합해야 한다.
+        $this->assertTrue($this->checker->verify($outputDir)->valid);
+    }
+
+    /**
+     * 출력 디렉토리에 composer.lock 이 없으면 소스(활성) 의 lock 으로 폴백해야 합니다.
+     *
+     * 코어는 source == output 이므로 항상 같은 파일이고, 확장도 _bundled 에 lock 이 없는
+     * 과도기 상태에서 빌드가 깨지지 않아야 한다 (resolveHashTarget 과 동일한 폴백 규칙).
+     */
+    public function test_build_falls_back_to_source_lock_when_output_lock_missing(): void
+    {
+        $sourceDir = $this->testDir.'/active';
+        $outputDir = $this->testDir.'/bundled';
+        File::ensureDirectoryExists($sourceDir);
+        File::ensureDirectoryExists($outputDir);
+
+        File::put($sourceDir.'/composer.json', json_encode([
+            'name' => 'test/project',
+            'require' => ['php' => '^8.2', 'test/lib' => '^1.0'],
+        ]));
+        File::put($sourceDir.'/composer.lock', json_encode([
+            'packages' => [
+                ['name' => 'test/lib', 'version' => '1.0.0', 'type' => 'library'],
+            ],
+        ]));
+
+        // _bundled 에 composer.json 만 있고 lock 은 없음
+        File::put($outputDir.'/composer.json', File::get($sourceDir.'/composer.json'));
+
+        $this->invokeBuild('test:lock-fallback', sourcePath: $sourceDir, outputPath: $outputDir);
+
+        $manifest = json_decode(File::get($outputDir.'/vendor-bundle.json'), true);
+        $names = array_column($manifest['packages'], 'name');
+
+        $this->assertContains('test/lib', $names, '출력에 lock 이 없으면 소스 lock 으로 폴백해야 합니다.');
+    }
+
+    /**
      * 분리 구조에서 isStale 은 **출력(_bundled)** 의 composer.json 변경을 감지해야 합니다.
      *
      * 활성 디렉토리만 검사하면 _bundled 의 stale 을 up-to-date 로 오보하여, --check 가 재빌드 필요를
