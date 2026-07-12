@@ -172,6 +172,40 @@ test.describe('네트워크 복원력 — 번들이 끝내 부재할 때 (#463)'
   });
 
   /**
+   * 템플릿 컴포넌트 번들도 코어 번들과 동일한 `<script src>` 사망 경로다.
+   * 이쪽이 끝내 부재하면 코어 엔진(`G7Core`)은 살아 있지만 렌더할 컴포넌트가 없어
+   * 화면을 만들 수 없다 — 백지로 끝나면 안 되고 폴백 안내로 끝나야 한다.
+   *
+   * (1건 취소 → 복구 는 검증하지 않는다. 위 'script 번들 경로' 주석대로 브라우저가
+   *  abort 된 script 를 스스로 재요청해 수정 전에도 통과하기 때문. 재시도가 실제로
+   *  값을 갖는 지점은 브라우저가 포기한 뒤인 여기다.)
+   */
+  test('@smoke 템플릿 컴포넌트 번들 상시 부재 → 백지가 아니라 폴백 안내 + 새로고침 버튼', async ({ page }) => {
+    let attempts = 0;
+    await page.route('**/api/templates/assets/**/components.iife.js*', (route) => {
+      attempts += 1;
+      return route.abort('failed');
+    });
+
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded', { timeout: 30_000 });
+    await page.waitForFunction(
+      () => (document.querySelector('#app')?.childElementCount ?? 0) > 0,
+      { timeout: 20_000 }
+    );
+
+    const text = await bodyText(page);
+
+    // 백지가 아니어야 한다
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).toMatch(FALLBACK_UI);
+    await expect(page.locator('#app button')).toBeVisible();
+
+    // 재시도 3시도 (초기 1 + 재시도 2)
+    expect(attempts).toBe(3);
+  });
+
+  /**
    * 재시도를 소진한 **진짜 실패**는 조용히 삼키면 안 된다. 사용자가 상황을 알고
    * 재시도(새로고침)할 수 있어야 한다 — 복원력이 은폐가 되어서는 안 된다.
    */

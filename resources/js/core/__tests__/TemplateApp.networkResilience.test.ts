@@ -156,6 +156,12 @@ describe('TemplateApp 네트워크 복원력 (#463)', () => {
                 String(c[0]).includes('routes.json')
             );
             expect(routesCalls).toHaveLength(2);
+
+            // 재시도로 받아온 routes 가 **실제로 라우터에 반영**돼야 한다.
+            // "에러 화면이 안 떴다" 만으로는 복구를 증명하지 못한다 — 라우트가 비어도
+            // 에러 화면은 안 뜬다. 복구의 본체는 데이터가 흘러 들어갔다는 사실이다.
+            const routerInstance = (app as any).router;
+            expect(routerInstance?.setRoutes).toHaveBeenCalled();
         });
 
         it('routes.json 이 3회 연속 네트워크 실패하면 에러 화면을 1회 렌더한다', async () => {
@@ -313,7 +319,7 @@ describe('TemplateApp 네트워크 복원력 (#463)', () => {
          * throw 를 삼키므로 미등록 핸들러가 있어도 **렌더는 진행된다**. 이번 수정이
          * 그 동작을 깨뜨리지 않았는지 잠근다("ActionError 가 렌더를 차단한다" 는 오해).
          */
-        it('미등록 핸들러가 있어도 init_actions 루프가 삼키고 렌더는 진행된다 (기존 동작 보존)', async () => {
+        it('미등록 핸들러가 있어도 init_actions 루프가 삼키고 초기화가 에러 화면 없이 완주한다 (기존 동작 보존)', async () => {
             const { getModuleAssetLoader } = await import('../modules');
             const loader = getModuleAssetLoader();
             (loader as any).failedJsAssets = new Set(['module']);
@@ -337,6 +343,26 @@ describe('TemplateApp 네트워크 복원력 (#463)', () => {
                     {}
                 )
             ).resolves.toBeUndefined();
+
+            // 그리고 **초기화가 에러 화면 없이 완주해야 한다** — 이것이 계획서가 지정한
+            // "기존 동작 보존" 의 본체다. "executeInitActions 가 reject 하지 않는다" 만으로는
+            // 앱이 살아남았음을 보이지 못한다(그 뒤 init 체인이 죽어도 통과한다).
+            // 확장 부재는 **조용한 기능 열화**로 끝나야 하고 전면 에러 화면이 되면 안 된다.
+            //
+            // (renderTemplate 자체를 단언하지는 않는다 — 그 호출은 라우터 매칭 → 레이아웃
+            //  로드를 거치는 별개 경로라, 여기서 모킹으로 재현하면 검증 대상이 아니라
+            //  모킹을 시험하는 테스트가 된다. 렌더까지의 실제 도달은 E2E '모듈 번들 상시
+            //  부재 → 5초 블로킹 없이 렌더' 가 실브라우저에서 잠근다.)
+            vi.stubGlobal(
+                'fetch',
+                vi.fn((url: string) =>
+                    Promise.resolve(String(url).includes('routes.json') ? routesOk() : configOk())
+                )
+            );
+
+            await app.init();
+
+            expect(errorSpy).not.toHaveBeenCalled();
 
             (loader as any).failedJsAssets = new Set();
         });
