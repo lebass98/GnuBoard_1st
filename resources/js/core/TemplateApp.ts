@@ -4188,14 +4188,38 @@ export class TemplateApp {
             return;
         }
 
-        // 확장 JS 번들 로드가 실패로 확정됐다면 그 핸들러는 영원히 오지 않는다.
+        // 대기 중인 핸들러를 실어올 JS 가 **실패로 확정**됐다면 그 핸들러는 영원히 오지 않는다.
         // 오지 않을 것을 기다리지 않는다 (5초 백지 제거).
-        if (getModuleAssetLoader().hasFailedJsAssets()) {
-            logger.warn(
-                'Extension asset load failed — not waiting for handlers that will never register:',
-                handlerNames
+        //
+        // 실패 키는 두 형태다:
+        //   - 병합 번들 경로: 'module' / 'plugin'  (확장 전체가 한 파일)
+        //   - 개별 로딩 경로: 확장 식별자 (예: 'sirsoft-ecommerce')
+        // 핸들러 이름은 `{확장식별자}.{핸들러}` 이므로, 개별 로딩 실패는 접두사로 대조한다.
+        // 병합 번들이 죽으면 그 번들에 속한 확장을 여기서 알 수 없으므로 전체 포기가 맞다
+        // (그 파일 하나가 통째로 없다).
+        //
+        // 반대로 실패를 특정 핸들러에 귀속시킬 수 없으면 **기다린다** — 무관한 확장의 실패로
+        // 정상 로드 중인 확장의 핸들러 대기까지 포기하면 멀쩡한 기능이 조용히 사라진다.
+        // (@since engine-v1.53.0)
+        const failedAssets = getModuleAssetLoader().getFailedJsAssets();
+        if (failedAssets.length > 0) {
+            const bundleFailed = failedAssets.some(key => key === 'module' || key === 'plugin');
+            const pending = handlerNames.filter(
+                name => !actionDispatcher.customHandlers?.has(name)
             );
-            return;
+            const allPendingAreDead =
+                pending.length > 0 &&
+                pending.every(name =>
+                    failedAssets.some(key => name.startsWith(`${key}.`))
+                );
+
+            if (bundleFailed || allPendingAreDead) {
+                logger.warn(
+                    'Extension asset load failed — not waiting for handlers that will never register:',
+                    { pending, failedAssets }
+                );
+                return;
+            }
         }
 
         logger.log('Waiting for module handlers:', handlerNames);

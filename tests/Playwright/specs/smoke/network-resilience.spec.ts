@@ -74,10 +74,52 @@ test.describe('네트워크 복원력 — 요청 1건의 일시 실패 (#463)', 
       expect(text).not.toMatch(DEAD_SCREEN);
       expect(text.length).toBeGreaterThan(20);
 
-      // 재시도가 실제로 발동했는지 — 취소 1건 + 재시도 최소 1건
-      expect(counter.hits()).toBeGreaterThanOrEqual(2);
+      // 취소 1건 + 재시도 1건 = 정확히 2회.
+      // 하한(>=2)으로 두면 과잉 재시도(3회+) 회귀가 그대로 통과한다. 재시도는 "필요한
+      // 만큼만" 이 계약이므로 정확값으로 잠근다.
+      expect(counter.hits()).toBe(2);
     });
   }
+
+  /**
+   * `<script src>` 경로 (코어 번들 / 템플릿 컴포넌트 번들).
+   *
+   * 실측 결과 — 이 둘은 **1건 취소만으로는 죽지 않는다**. Chromium 이 abort 된
+   * `<script src>` 를 스스로 재요청하기 때문이다(수정 전 blade 로 측정해도
+   * hits=2, #app 렌더 정상). 따라서 "1건 취소 → 복구" 를 단언하는 테스트는
+   * **수정 전에도 통과** 해 회귀 가드가 되지 못한다 (거짓 안심).
+   *
+   * blade 인라인 재시도가 실제로 값을 갖는 지점은 **브라우저가 포기한 뒤**다.
+   * 그 경계(끝내 부재 → 백지 대신 폴백 안내)는 아래 '번들이 끝내 부재할 때'
+   * describe 가 검증한다. 여기서는 그 사이 계약 — 재시도 훅이 실제로 설치되고
+   * 정상 경로를 방해하지 않는다는 것 — 만 잠근다.
+   */
+  test('@smoke script 번들 경로 — 부트스트랩 재시도 훅이 설치되고 정상 로드를 방해하지 않는다', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('domcontentloaded', { timeout: 30_000 });
+    await page.waitForFunction(
+      () => (document.querySelector('#app')?.childElementCount ?? 0) > 0,
+      { timeout: 20_000 }
+    );
+
+    // 재시도/폴백 훅이 실제로 살아 있어야 한다 (blade partial 이 빠지면 여기서 잡힌다)
+    const bootstrap = await page.evaluate(() => {
+      const b = (window as any).__g7Bootstrap;
+      return b
+        ? { present: true, failed: b.failed, hasRetry: typeof b.retry === 'function', hasFallback: typeof b.renderFallback === 'function' }
+        : { present: false };
+    });
+
+    expect(bootstrap.present).toBe(true);
+    expect(bootstrap.hasRetry).toBe(true);
+    expect(bootstrap.hasFallback).toBe(true);
+
+    // 정상 경로에서는 실패로 마킹되지 않아야 한다 (재시도가 오발동하면 여기서 잡힌다)
+    expect(bootstrap.failed).toBe(false);
+
+    const text = await bodyText(page);
+    expect(text).not.toMatch(DEAD_SCREEN);
+  });
 
   // 레이아웃 API 는 페이지마다 경로가 다르다. 방어가 로드 계층에 걸려 있으므로
   // URL 이 달라져도 동일하게 복구돼야 한다 (URL 열거 방식이 아님을 잠근다).
@@ -93,7 +135,7 @@ test.describe('네트워크 복원력 — 요청 1건의 일시 실패 (#463)', 
 
     const text = await bodyText(page);
     expect(text).not.toMatch(DEAD_SCREEN);
-    expect(counter.hits()).toBeGreaterThanOrEqual(2);
+    expect(counter.hits()).toBe(2);
   });
 });
 

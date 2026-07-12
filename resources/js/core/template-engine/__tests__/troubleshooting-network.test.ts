@@ -335,16 +335,53 @@ describe('[사례 3] 확장 부재 시 5초 백지 + 내부 식별자 raw 노출
      *       빨간 토스트로 사용자에게 raw 노출된다.
      * 해결: 미등록 핸들러 에러를 플래그로 식별해 표시 계층(errorHandling 정책)을 태우지 않는다.
      */
-    it('미등록 핸들러 에러는 unknownHandler 로 식별되어 표시 계층에서 걸러진다', async () => {
+    it('미등록 핸들러를 실제로 dispatch 하면 unknownHandler 로 표시되고 토스트가 뜨지 않는다', async () => {
+        const { ActionDispatcher, ActionError } = await import('../ActionDispatcher');
+
+        const dispatcher = new ActionDispatcher();
+
+        // 확장 번들이 로드되지 않아 그 확장 소유 핸들러가 등록되지 않은 상황
+        expect((dispatcher as any).customHandlers?.has('sirsoft-ecommerce.initPreferredCurrency')).toBeFalsy();
+
+        // 표시 계층 감시자 — ErrorHandlingResolver.
+        //
+        // 미등록 핸들러의 에러는 이 resolver 를 **태우지 않고** 곧장 빠져나가야 한다.
+        // resolver 가 돌면 errorHandling 정책(토스트 등)이 결정·실행되어
+        // `Unknown action handler: sirsoft-ecommerce.initPreferredCurrency` 라는
+        // 내부 식별자가 담긴 raw 영문 문구가 사용자에게 노출된다.
+        //
+        // resolver 호출 여부가 곧 "표시 계층을 탔는가" 이므로 이를 직접 감시한다.
+        const resolverModule = await import('../../error');
+        const resolveSpy = vi.spyOn(
+            resolverModule.getErrorHandlingResolver(),
+            'resolve'
+        );
+
+        const result: any = await dispatcher.dispatchAction(
+            {
+                handler: 'sirsoft-ecommerce.initPreferredCurrency',
+                // 표시 계층을 태우라고 명시해도 미등록 핸들러는 예외로 걸러져야 한다
+                errorHandling: { default: { toast: true } },
+            } as any,
+            {} as any
+        );
+
+        // 실패 사실과 그 사유(미등록 핸들러)는 호출부에 그대로 전달된다 — 삼키지 않는다.
+        expect(result.success).toBe(false);
+        expect(result.error).toBeInstanceOf(ActionError);
+        expect(result.error.unknownHandler).toBe(true);
+
+        // 핵심 단언: 표시 계층(ErrorHandlingResolver) 이 실행되지 않았다
+        //           = 내부 식별자가 사용자에게 노출되지 않았다.
+        expect(resolveSpy).not.toHaveBeenCalled();
+    });
+
+    it('미등록 핸들러가 아닌 일반 액션 에러는 종전대로 표시 계층으로 넘어간다 (과잉 억제 방지)', async () => {
         const { ActionError } = await import('../ActionDispatcher');
 
-        // 미등록 핸들러가 아닌 일반 액션 에러는 종전대로 사용자에게 표시되어야 한다
+        // 억제는 미등록 핸들러에 **한정**된다. 일반 에러까지 삼키면 사용자가 실패를
+        // 인지하지 못하는 더 큰 결함이 된다.
         const normalError = new ActionError('API request failed');
         expect(normalError.unknownHandler).toBe(false);
-
-        // 미등록 핸들러 에러만 표시 계층에서 걸러진다
-        const unknownError = new ActionError('Unknown action handler: sirsoft-ecommerce.initPreferredCurrency');
-        unknownError.unknownHandler = true;
-        expect(unknownError.unknownHandler).toBe(true);
     });
 });
