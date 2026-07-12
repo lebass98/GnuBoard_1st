@@ -4,6 +4,12 @@
 형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따르며,
 [Semantic Versioning](https://semver.org/lang/ko/)을 준수합니다.
 
+## [1.0.4] - 2026-07-12
+
+### Added
+
+- 화면 구성에 필요한 스크립트를 끝내 불러오지 못했을 때 표시되는 안내 문구 일본어 번역 추가 (`errors.bootstrap.*`) — 네트워크 문제로 페이지를 열지 못한 경우의 안내와 새로고침 버튼이 일본어 로케일에서 자연스럽게 표시됩니다.
+
 ## [1.0.3] - 2026-07-11
 
 ### Added
