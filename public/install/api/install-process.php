@@ -15,8 +15,12 @@
 require_once __DIR__.'/../includes/config.php';
 require_once __DIR__.'/../includes/session.php';
 require_once __DIR__.'/../includes/installer-state.php';
-require_once __DIR__.'/../includes/installer-runtime.php';
+// functions.php 를 installer-runtime.php 보다 먼저 로드한다 — 다른 인스톨러
+// 엔드포인트(finalize-env.php / task-runner.php)와 동일한 순서.
+// installer-runtime.php 는 escapeEnvValue() 를 function_exists 가드와 함께
+// polyfill 로 선언하므로, functions.php 가 먼저 와야 그 가드가 제 역할을 한다.
 require_once __DIR__.'/../includes/functions.php';
+require_once __DIR__.'/../includes/installer-runtime.php';
 require_once __DIR__.'/_guard.php';
 installer_guard_or_410();
 
