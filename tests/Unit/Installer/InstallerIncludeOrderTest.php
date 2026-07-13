@@ -138,6 +138,163 @@ class InstallerIncludeOrderTest extends TestCase
     }
 
     /**
+     * 각 인스톨러 엔드포인트의 실제 require 체인을 그대로 로드했을 때, 그 엔드포인트가
+     * 호출하는 함수들이 모두 정의되는지 검증한다.
+     *
+     * 인스톨러는 Laravel 오토로드 밖의 플레인 PHP require 체인이라, 어떤 파일에 함수
+     * 호출을 추가하면 그 함수의 정의 파일이 **그 엔드포인트의 체인에 실제로 포함되어
+     * 있는지** 를 사람이 직접 확인해야 한다. 빠뜨리면 "Call to undefined function"
+     * fatal → 빈 응답 → 프론트의 JSON 파싱 에러가 된다 (escapeEnvValue 재선언 fatal 과
+     * 증상이 동일하지만 원인은 다름).
+     *
+     * 단위 테스트는 함수를 직접 호출하므로 이 축을 잡지 못한다 — 엔드포인트의 조립
+     * 계층을 재현해야만 검출된다.
+     *
+     * @dataProvider endpointChainProvider
+     *
+     * @param  array<int, string>  $chain  엔드포인트의 top-level require 순서
+     * @param  array<int, string>  $requiredFunctions  그 엔드포인트가 호출하는 함수들
+     */
+    public function test_endpoint_require_chain_defines_all_functions_it_calls(
+        string $endpoint,
+        array $chain,
+        array $requiredFunctions,
+    ): void {
+        $root = str_replace('\\', '/', $this->projectRoot);
+
+        $lines = ['error_reporting(E_ALL);'];
+        foreach ($chain as $include) {
+            $lines[] = "require_once '{$root}/{$include}';";
+        }
+        foreach ($requiredFunctions as $fn) {
+            $lines[] = "if (! function_exists('{$fn}')) { echo 'MISSING:{$fn} '; }";
+        }
+        $lines[] = "echo 'CHECK_DONE';";
+
+        $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $process = proc_open([PHP_BINARY, '-r', implode("\n", $lines)], $descriptors, $pipes);
+        $this->assertIsResource($process);
+
+        $output = stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        $this->assertStringNotContainsString(
+            'Fatal error',
+            $output,
+            "{$endpoint} 의 require 체인 로드 중 fatal 발생 — 이 엔드포인트는 빈 응답을 반환한다:\n".$output,
+        );
+        $this->assertStringNotContainsString(
+            'MISSING:',
+            $output,
+            "{$endpoint} 가 호출하는 함수가 그 require 체인에서 정의되지 않는다 "
+            .'— 실행 시 "Call to undefined function" fatal 이 발생한다:'."\n".$output,
+        );
+        $this->assertStringContainsString('CHECK_DONE', $output);
+    }
+
+    /**
+     * 엔드포인트별 (실제 require 체인, 그 엔드포인트가 호출하는 함수 목록).
+     *
+     * 인스톨러 엔드포인트에 새 함수 호출을 추가하면 여기에도 등록한다.
+     *
+     * @return array<string, array{0:string, 1:array<int,string>, 2:array<int,string>}>
+     */
+    public static function endpointChainProvider(): array
+    {
+        return [
+            'install-process.php (SSE/폴링 공통 시작점)' => [
+                'install-process.php',
+                [
+                    'public/install/includes/config.php',
+                    'public/install/includes/session.php',
+                    'public/install/includes/installer-state.php',
+                    'public/install/includes/functions.php',
+                    'public/install/includes/installer-runtime.php',
+                ],
+                [
+                    'sanitizeConfigForState',
+                    'buildInstallerRuntimeFromState',
+                    'writeInstallerRuntime',
+                    'readInstallerRuntime',
+                    'getInstallationState',
+                    'saveInstallationState',
+                    'applyExistingDbActionStateGuard',
+                    'escapeEnvValue',
+                ],
+            ],
+            'state-management.php (reset / abort)' => [
+                'state-management.php',
+                [
+                    'public/install/includes/config.php',
+                    'public/install/includes/session.php',
+                    'public/install/includes/functions.php',
+                    'public/install/includes/installer-state.php',
+                    'public/install/api/rollback-functions.php',
+                ],
+                [
+                    'redactInstallationStateSecrets',
+                    'saveInstallationState',
+                    'getInstallationState',
+                    'rollbackCurrentTask',
+                    'executeSeedTruncate',
+                ],
+            ],
+            'finalize-env.php' => [
+                'finalize-env.php',
+                [
+                    'public/install/includes/config.php',
+                    'public/install/includes/functions.php',
+                    'public/install/includes/installer-runtime.php',
+                    'public/install/includes/installer-state.php',
+                ],
+                [
+                    'redactInstallationStateSecrets',
+                    'getInstallationState',
+                    'saveInstallationState',
+                    'readInstallerRuntime',
+                    'mergeRuntimeIntoEnv',
+                    'deleteInstallerRuntime',
+                ],
+            ],
+            'install-worker.php (SSE 워커 → task-runner)' => [
+                'install-worker.php',
+                [
+                    'public/install/includes/config.php',
+                    'public/install/includes/functions.php',
+                    'public/install/includes/installer-state.php',
+                    'public/install/includes/progress-emitter.php',
+                    'public/install/includes/task-runner.php',
+                ],
+                [
+                    'purgeAdminPasswordAfterSeeding',
+                    'hydrateDbSecretsFromRuntime',
+                    'redactInstallationStateSecrets',
+                    'readInstallerRuntime',
+                    'writeInstallerRuntime',
+                    'executeSeedTruncate',
+                ],
+            ],
+            'index.php (Step3 폼 / 완료 감지)' => [
+                'index.php',
+                [
+                    'public/install/includes/config.php',
+                    'public/install/includes/functions.php',
+                    'public/install/includes/session.php',
+                    'public/install/includes/installer-state.php',
+                    'public/install/includes/request-handler.php',
+                ],
+                [
+                    'sanitizeConfigForState',
+                    'isInstallationCompleted',
+                    'installerSecretConfigKeys',
+                ],
+            ],
+        ];
+    }
+
+    /**
      * installer-runtime.php 가 polyfill 로 선언하는 함수는 functions.php 에서도
      * function_exists 가드를 가져야 한다 — 정적 계약 검사.
      *
