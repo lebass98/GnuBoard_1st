@@ -81,6 +81,75 @@ class NoSourcemapArtifactsTest extends TestCase
     }
 
     /**
+     * 활성(서빙) 확장 디렉토리에 소스맵 산출물이 남아 있지 않은지 테스트
+     *
+     * 위 세 테스트는 모두 git 추적 파일만 본다. 그러나 웹서버가 실제로 서빙하는 것은
+     * 활성 디렉토리(`templates/{id}`, `modules/{id}`, `plugins/{id}`)이고, 이들은
+     * .gitignore 대상이라 추적 기반 검사에 전혀 걸리지 않는다.
+     *
+     * 실제로 `_bundled` 를 --production 으로 재빌드한 뒤에도 `{type}:update` 를 돌리지
+     * 않은 확장은 활성 디렉토리에 예전 .map 과 sourceMappingURL 주석을 그대로 안고 있었다
+     * (브라우저 실측으로 발견). 서빙 계층이 .map 을 거부하므로 원본 유출로 이어지지는
+     * 않지만, 배포본 위생상 남아 있어서는 안 된다.
+     *
+     * `_bundled` 원본이 없는 활성 디렉토리는 배포본에 실리지 않는 로컬 잔재이므로 제외한다.
+     */
+    public function test_active_extension_dirs_have_no_sourcemap_artifacts(): void
+    {
+        $offenders = [];
+
+        foreach (['templates', 'modules', 'plugins'] as $type) {
+            foreach (glob(base_path("{$type}/*/dist/js/*.map")) ?: [] as $path) {
+                $identifier = basename(dirname($path, 3));
+
+                if ($this->isReservedExtensionDir($identifier) || ! $this->isBundledExtension($type, $identifier)) {
+                    continue;
+                }
+
+                $offenders[] = str_replace(base_path().DIRECTORY_SEPARATOR, '', $path);
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            '활성(서빙) 확장 디렉토리에 소스맵이 남아 있습니다. 해당 확장을 --production 으로 '.
+            "재빌드한 뒤 `{type}:update {id} --force` 를 실행하세요:\n  ".
+            implode("\n  ", $offenders)
+        );
+    }
+
+    /**
+     * `_bundled` / `_pending` 등 활성 확장이 아닌 예약 디렉토리인지 판정합니다.
+     *
+     * @param  string  $identifier  디렉토리명
+     * @return bool 예약 디렉토리 여부
+     */
+    private function isReservedExtensionDir(string $identifier): bool
+    {
+        return str_starts_with($identifier, '_');
+    }
+
+    /**
+     * 해당 확장이 배포본에 실리는 번들 확장인지 판정합니다.
+     *
+     * 판정 기준은 `_bundled` 원본의 존재다. DB 레코드로 판정하면 안 된다 — 테스트 DB 에는
+     * 확장 레코드가 없어(0건) 모든 파일이 건너뛰어지고 테스트가 영구 green 이 된다
+     * (실제로 이 함정에 빠졌다: .map 을 심어도 통과했다).
+     *
+     * `_bundled` 에 없는 활성 디렉토리는 과거 설치의 로컬 잔재이며 gitignore 대상이라
+     * 공개 배포본에 포함되지 않으므로 판정에서 제외한다.
+     *
+     * @param  string  $type  확장 타입 (templates|modules|plugins)
+     * @param  string  $identifier  확장 식별자
+     * @return bool 번들 확장 여부
+     */
+    private function isBundledExtension(string $type, string $identifier): bool
+    {
+        return is_dir(base_path("{$type}/_bundled/{$identifier}"));
+    }
+
+    /**
      * git 명령을 실행하고 출력 라인 배열을 반환합니다.
      *
      * @param  array<int, string>  $args  git 인자
