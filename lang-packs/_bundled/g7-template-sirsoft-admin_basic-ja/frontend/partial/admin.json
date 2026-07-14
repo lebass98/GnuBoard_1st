@@ -1089,7 +1089,8 @@
     "errors": {
       "system_role_delete": "システムロールは削除できません。",
       "delete_failed": "ロール削除に失敗しました。"
-    }
+    },
+    "refresh": "更新"
   },
   "schedules": {
     "page_title": "スケジュール管理",
