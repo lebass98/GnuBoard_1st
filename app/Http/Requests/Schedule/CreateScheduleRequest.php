@@ -6,6 +6,8 @@ use App\Enums\ExtensionOwnerType;
 use App\Enums\ScheduleFrequency;
 use App\Enums\ScheduleType;
 use App\Extension\HookManager;
+use App\Rules\AllowedArtisanCommand;
+use App\Rules\AllowedShellCommand;
 use App\Rules\PublicOutboundUrl;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,7 +40,8 @@ class CreateScheduleRequest extends FormRequest
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'type' => "required|string|in:{$types}",
-            // URL 호출 스케줄이면 command 가 곧 서버의 outbound 목적지가 되므로 내부망 주소를 차단한다
+            // command 는 타입별로 서버의 outbound 목적지(URL)·OS 명령(Shell)·PHP 코드(Artisan)가 되므로
+            // 각 타입에 맞는 실행 허용 검증을 저장 시점에 건다
             'command' => [
                 'required',
                 'string',
@@ -46,6 +49,14 @@ class CreateScheduleRequest extends FormRequest
                 Rule::when(
                     $this->input('type') === ScheduleType::Url->value,
                     [new PublicOutboundUrl],
+                ),
+                Rule::when(
+                    $this->input('type') === ScheduleType::Shell->value,
+                    [new AllowedShellCommand],
+                ),
+                Rule::when(
+                    $this->input('type') === ScheduleType::Artisan->value,
+                    [new AllowedArtisanCommand],
                 ),
             ],
             'expression' => 'required|string|max:100',

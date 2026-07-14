@@ -509,6 +509,12 @@ return [
         'internal_not_allowed' => '내부 네트워크 주소(사설 IP·localhost 등)는 사용할 수 없습니다. 외부에서 접속 가능한 주소를 입력해 주세요.',
     ],
 
+    // 서버에서 실행되는 스케줄 command(쉘·Artisan) 검증 메시지
+    'schedule_command' => [
+        'shell_not_allowed' => '허용되지 않은 쉘 명령입니다. 서버에 등록된 실행 파일만 사용할 수 있으며, 파이프(|)·세미콜론(;) 등 특수문자는 쓸 수 없습니다.',
+        'artisan_denied' => '이 Artisan 명령은 보안상 스케줄로 실행할 수 없습니다.',
+    ],
+
     // 컴포넌트 존재 여부 검증 메시지
     'component' => [
         'template_id_required' => '컴포넌트 검증을 위해서는 template_id가 필요합니다.',
