@@ -6,12 +6,18 @@ use App\Enums\ExtensionOwnerType;
 use App\Enums\ScheduleFrequency;
 use App\Enums\ScheduleType;
 use App\Extension\HookManager;
+use App\Models\Schedule;
+use App\Rules\PublicOutboundUrl;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateScheduleRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
+     *
+     * @return bool 권한 검사는 라우트의 permission 미들웨어가 담당하므로 항상 true
      */
     public function authorize(): bool
     {
@@ -21,7 +27,7 @@ class UpdateScheduleRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -32,7 +38,14 @@ class UpdateScheduleRequest extends FormRequest
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'type' => "sometimes|required|string|in:{$types}",
-            'command' => 'sometimes|required|string|max:2000',
+            // URL 호출 스케줄이면 command 가 곧 서버의 outbound 목적지가 되므로 내부망 주소를 차단한다
+            'command' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:2000',
+                Rule::when($this->resolvesToUrlSchedule(), [new PublicOutboundUrl]),
+            ],
             'expression' => 'sometimes|required|string|max:100',
             'frequency' => "sometimes|required|string|in:{$frequencies}",
             'without_overlapping' => 'boolean',
@@ -45,6 +58,25 @@ class UpdateScheduleRequest extends FormRequest
 
         // 모듈/플러그인이 validation rules를 동적으로 추가할 수 있도록 훅 제공
         return HookManager::applyFilters('core.schedule.update_validation_rules', $rules, $this);
+    }
+
+    /**
+     * 이번 수정 결과 URL 호출 스케줄이 되는지 판정합니다.
+     *
+     * PATCH 라 `type` 이 요청에 없을 수 있으므로, 없으면 저장된 스케줄의 타입을 기준으로
+     * 판정한다 — 그렇지 않으면 기존 url 스케줄의 command 만 바꾸는 요청이 검증을 비껴간다.
+     *
+     * @return bool URL 호출 스케줄이면 true
+     */
+    protected function resolvesToUrlSchedule(): bool
+    {
+        if ($this->has('type')) {
+            return $this->input('type') === ScheduleType::Url->value;
+        }
+
+        $schedule = $this->route('schedule');
+
+        return $schedule instanceof Schedule && $schedule->type === ScheduleType::Url;
     }
 
     /**

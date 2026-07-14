@@ -6,13 +6,18 @@ use App\Enums\ExtensionOwnerType;
 use App\Enums\ScheduleFrequency;
 use App\Enums\ScheduleType;
 use App\Extension\HookManager;
+use App\Rules\PublicOutboundUrl;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class CreateScheduleRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
+     *
+     * @return bool 권한 검사는 라우트의 permission 미들웨어가 담당하므로 항상 true
      */
     public function authorize(): bool
     {
@@ -22,7 +27,7 @@ class CreateScheduleRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -33,7 +38,16 @@ class CreateScheduleRequest extends FormRequest
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'type' => "required|string|in:{$types}",
-            'command' => 'required|string|max:2000',
+            // URL 호출 스케줄이면 command 가 곧 서버의 outbound 목적지가 되므로 내부망 주소를 차단한다
+            'command' => [
+                'required',
+                'string',
+                'max:2000',
+                Rule::when(
+                    $this->input('type') === ScheduleType::Url->value,
+                    [new PublicOutboundUrl],
+                ),
+            ],
             'expression' => 'required|string|max:100',
             'frequency' => "required|string|in:{$frequencies}",
             'without_overlapping' => 'boolean',
@@ -86,7 +100,9 @@ class CreateScheduleRequest extends FormRequest
     }
 
     /**
-     * 검증된 데이터 반환
+     * 검증된 데이터에 생성자(created_by)를 덧붙여 반환합니다.
+     *
+     * @return array<string, mixed> 검증된 입력 + created_by
      */
     public function validatedWithCreator(): array
     {

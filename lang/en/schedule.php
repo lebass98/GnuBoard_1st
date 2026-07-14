@@ -28,6 +28,7 @@ return [
     'copy' => 'Copy',
     'shell_command_failed' => 'Shell command execution failed.',
     'http_request_failed' => 'HTTP request failed with status: :status',
+    'url_not_public' => 'Internal network addresses (private IPs, localhost, etc.) cannot be called. To call an address inside your network, enable "Allow internal network addresses" under Settings > Security.',
 
     // Task types
     'type' => [

@@ -9,6 +9,7 @@
 ### Added
 
 - 화면 구성에 필요한 스크립트를 끝내 불러오지 못했을 때 표시되는 안내 문구 일본어 번역 추가 (`errors.bootstrap.*`) — 네트워크 문제로 페이지를 열지 못한 경우의 안내와 새로고침 버튼이 일본어 로케일에서 자연스럽게 표시됩니다.
+- 내부 네트워크 주소 호출 차단 관련 안내 문구 일본어 번역 추가 (`validation.outbound_url.*`, `schedule.url_not_public`, `language_packs.errors.download_url_not_public`, `settings.websocket_invalid_host`) — 예약 작업·언어팩 설치·웹소켓 설정에서 내부 주소가 거부될 때의 안내가 일본어 로케일에서 자연스럽게 표시됩니다.
 
 ## [1.0.3] - 2026-07-11
 
