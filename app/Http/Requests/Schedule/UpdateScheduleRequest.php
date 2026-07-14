@@ -7,6 +7,8 @@ use App\Enums\ScheduleFrequency;
 use App\Enums\ScheduleType;
 use App\Extension\HookManager;
 use App\Models\Schedule;
+use App\Rules\AllowedArtisanCommand;
+use App\Rules\AllowedShellCommand;
 use App\Rules\PublicOutboundUrl;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,13 +40,16 @@ class UpdateScheduleRequest extends FormRequest
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string|max:1000',
             'type' => "sometimes|required|string|in:{$types}",
-            // URL 호출 스케줄이면 command 가 곧 서버의 outbound 목적지가 되므로 내부망 주소를 차단한다
+            // command 는 타입별로 서버의 outbound 목적지(URL)·OS 명령(Shell)·PHP 코드(Artisan)가 되므로
+            // 각 타입에 맞는 실행 허용 검증을 저장 시점에 건다
             'command' => [
                 'sometimes',
                 'required',
                 'string',
                 'max:2000',
-                Rule::when($this->resolvesToUrlSchedule(), [new PublicOutboundUrl]),
+                Rule::when($this->resolvesToScheduleType(ScheduleType::Url), [new PublicOutboundUrl]),
+                Rule::when($this->resolvesToScheduleType(ScheduleType::Shell), [new AllowedShellCommand]),
+                Rule::when($this->resolvesToScheduleType(ScheduleType::Artisan), [new AllowedArtisanCommand]),
             ],
             'expression' => 'sometimes|required|string|max:100',
             'frequency' => "sometimes|required|string|in:{$frequencies}",
@@ -61,22 +66,23 @@ class UpdateScheduleRequest extends FormRequest
     }
 
     /**
-     * 이번 수정 결과 URL 호출 스케줄이 되는지 판정합니다.
+     * 이번 수정 결과 스케줄이 주어진 타입이 되는지 판정합니다.
      *
      * PATCH 라 `type` 이 요청에 없을 수 있으므로, 없으면 저장된 스케줄의 타입을 기준으로
-     * 판정한다 — 그렇지 않으면 기존 url 스케줄의 command 만 바꾸는 요청이 검증을 비껴간다.
+     * 판정한다 — 그렇지 않으면 기존 스케줄의 command 만 바꾸는 요청이 검증을 비껴간다.
      *
-     * @return bool URL 호출 스케줄이면 true
+     * @param  ScheduleType  $type  판정할 스케줄 타입
+     * @return bool 해당 타입의 스케줄이면 true
      */
-    protected function resolvesToUrlSchedule(): bool
+    protected function resolvesToScheduleType(ScheduleType $type): bool
     {
         if ($this->has('type')) {
-            return $this->input('type') === ScheduleType::Url->value;
+            return $this->input('type') === $type->value;
         }
 
         $schedule = $this->route('schedule');
 
-        return $schedule instanceof Schedule && $schedule->type === ScheduleType::Url;
+        return $schedule instanceof Schedule && $schedule->type === $type;
     }
 
     /**

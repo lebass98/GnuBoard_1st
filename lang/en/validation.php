@@ -510,6 +510,12 @@ return [
         'internal_not_allowed' => 'Internal network addresses (private IPs, localhost, etc.) are not allowed. Enter a publicly reachable address.',
     ],
 
+    // Schedule command (shell/Artisan) validation messages — these run on the server
+    'schedule_command' => [
+        'shell_not_allowed' => 'This shell command is not allowed. Only executables registered on the server may be used, and special characters such as pipes (|) or semicolons (;) are not permitted.',
+        'artisan_denied' => 'This Artisan command cannot be run as a schedule for security reasons.',
+    ],
+
     // Component existence validation messages
     'component' => [
         'template_id_required' => 'template_id is required for component validation.',
