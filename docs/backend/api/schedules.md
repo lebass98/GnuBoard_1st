@@ -170,7 +170,7 @@ HTTP/1.1 200
 | name | body | string | 예 | max 255 | 대상의 이름/명칭 |
 | description | body | string | 아니오 | max 1000 | 설명 |
 | type | body | string | 예 | `artisan`, `shell`, `url` | 작업 유형: artisan(Artisan 커맨드 실행), shell(쉘 명령 실행), url(URL 호출) |
-| command | body | string | 예 | max 2000 | 실행할 아티즌 커맨드 |
+| command | body | string | 예 | max 2000 | 실행할 명령 (`type` 에 따라 Artisan 커맨드 / 쉘 명령 / 호출할 URL). `type=url` 이면 내부 네트워크 주소(사설 IP·루프백·`localhost`·`*.internal` 등)는 거부되어 422 로 응답합니다 — 서버가 내부망으로 요청을 보내는 것을 막기 위함(SSRF). 사내 엔드포인트를 호출해야 하면 환경설정의 `security.allow_internal_outbound_urls` 를 켜세요. 이 설정을 켜도 userinfo(`https://a@b/`) 위장과 http/https 이외 scheme 은 계속 거부됩니다 |
 | expression | body | string | 예 | max 100 | 실행 시각을 정의하는 Cron 표현식 (예: `0 3 * * *`, 다음 실행 시각 next_run_at 계산의 기준) |
 | frequency | body | string | 예 | `everyMinute`, `hourly`, `daily`, `weekly`, `monthly`, `custom` | 실행 주기 |
 | without_overlapping | body | boolean | 아니오 | — | 중복 실행 방지 여부 |
@@ -680,7 +680,7 @@ HTTP/1.1 200
 | name | body | string | 예 | max 255 | 대상의 이름/명칭 |
 | description | body | string | 아니오 | max 1000 | 설명 |
 | type | body | string | 예 | `artisan`, `shell`, `url` | 작업 유형: artisan(Artisan 커맨드 실행), shell(쉘 명령 실행), url(URL 호출) |
-| command | body | string | 예 | max 2000 | 실행할 아티즌 커맨드 |
+| command | body | string | 예 | max 2000 | 실행할 명령 (`type` 에 따라 Artisan 커맨드 / 쉘 명령 / 호출할 URL). `type=url` 이면 내부 네트워크 주소(사설 IP·루프백·`localhost`·`*.internal` 등)는 거부되어 422 로 응답합니다 — 서버가 내부망으로 요청을 보내는 것을 막기 위함(SSRF). 사내 엔드포인트를 호출해야 하면 환경설정의 `security.allow_internal_outbound_urls` 를 켜세요. 이 설정을 켜도 userinfo(`https://a@b/`) 위장과 http/https 이외 scheme 은 계속 거부됩니다 |
 | expression | body | string | 예 | max 100 | 실행 시각을 정의하는 Cron 표현식 (예: `0 3 * * *`, 다음 실행 시각 next_run_at 계산의 기준) |
 | frequency | body | string | 예 | `everyMinute`, `hourly`, `daily`, `weekly`, `monthly`, `custom` | 실행 주기 |
 | without_overlapping | body | boolean | 아니오 | — | 중복 실행 방지 여부 |

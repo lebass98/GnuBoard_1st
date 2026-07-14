@@ -10,6 +10,7 @@ use App\Enums\ScheduleType;
 use App\Extension\HookManager;
 use App\Models\Schedule;
 use App\Models\ScheduleHistory;
+use App\Support\OutboundUrlValidator;
 use Exception;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 class ScheduleService
 {
@@ -250,7 +252,7 @@ class ScheduleService
     {
         $output = '';
 
-        Artisan::call($schedule->command, [], new \Symfony\Component\Console\Output\BufferedOutput);
+        Artisan::call($schedule->command, [], new BufferedOutput);
 
         return [
             'output' => Artisan::output(),
@@ -292,6 +294,12 @@ class ScheduleService
      */
     private function executeUrlCall(Schedule $schedule): array
     {
+        // 저장된 URL 이 그대로 서버의 outbound 목적지가 되므로, 실행 직전에도 내부망 주소를 차단한다
+        // (저장 시점 검증 도입 이전 데이터나 DB 직접 수정으로 들어온 값 방어).
+        if (! $this->isUrlCallAllowed($schedule->command)) {
+            throw new Exception(__('schedule.url_not_public'));
+        }
+
         $timeout = $schedule->timeout ?? 30;
 
         $response = Http::timeout($timeout)->get($schedule->command);
@@ -304,6 +312,27 @@ class ScheduleService
             'output' => 'HTTP Status: '.$response->status()."\n".$response->body(),
             'exit_code' => 0,
         ];
+    }
+
+    /**
+     * 스케줄의 URL 호출이 허용되는 목적지인지 판정합니다.
+     *
+     * 사설 IP·localhost 등 내부 네트워크 주소는 기본 차단하되, 사내 엔드포인트를 주기 호출하는
+     * 정당한 운영을 위해 `security.allow_internal_outbound_urls` 로 허용할 수 있습니다.
+     * 허용하더라도 userinfo 위장·비 HTTP scheme 은 계속 거부합니다.
+     *
+     * @param  string  $url  스케줄에 저장된 호출 URL
+     * @return bool 호출을 허용하면 true
+     */
+    private function isUrlCallAllowed(string $url): bool
+    {
+        $options = ['schemes' => ['http', 'https']];
+
+        if ((bool) g7_core_settings('security.allow_internal_outbound_urls', false)) {
+            return OutboundUrlValidator::isStructurallySafeUrl($url, $options);
+        }
+
+        return OutboundUrlValidator::isPublicHttpUrl($url, $options);
     }
 
     /**

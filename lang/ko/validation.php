@@ -503,6 +503,12 @@ return [
         'dangerous_scheme_detected' => '위험한 URI 스킴이 감지되었습니다: :scheme',
     ],
 
+    // 서버가 대신 호출하는 URL(외부 API·스케줄 등) 검증 메시지
+    'outbound_url' => [
+        'invalid' => '올바른 형식의 URL이 아닙니다. http 또는 https 로 시작하는 주소를 입력해 주세요.',
+        'internal_not_allowed' => '내부 네트워크 주소(사설 IP·localhost 등)는 사용할 수 없습니다. 외부에서 접속 가능한 주소를 입력해 주세요.',
+    ],
+
     // 컴포넌트 존재 여부 검증 메시지
     'component' => [
         'template_id_required' => '컴포넌트 검증을 위해서는 template_id가 필요합니다.',
@@ -897,6 +903,7 @@ return [
         // 보안 설정
         'force_https_required' => 'HTTPS 강제 적용 설정을 선택해주세요.',
         'force_https_boolean' => 'HTTPS 강제 적용은 true 또는 false 값이어야 합니다.',
+        'allow_internal_outbound_urls_boolean' => '내부 네트워크 주소 호출 허용은 true 또는 false 값이어야 합니다.',
         'login_attempt_enabled_required' => '로그인 시도 제한 설정을 선택해주세요.',
         'login_attempt_enabled_boolean' => '로그인 시도 제한은 true 또는 false 값이어야 합니다.',
         'auth_token_lifetime_integer' => '인증 토큰 유지시간은 정수여야 합니다.',
