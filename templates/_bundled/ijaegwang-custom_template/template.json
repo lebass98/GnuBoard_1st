@@ -1,0 +1,65 @@
+{
+    "identifier": "ijaegwang-custom_template",
+    "vendor": "ijaegwang",
+    "name": {
+        "ko": "이자광 커스텀 템플릿",
+        "en": "Ijaegwang Custom Template"
+    },
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": {
+        "ko": "이자광 사용자의 커스텀 사용자 템플릿",
+        "en": "Custom user template for Ijaegwang"
+    },
+    "type": "user",
+    "hidden": false,
+    "locales": ["ko", "en"],
+    "author": {
+        "name": "ijaegwang",
+        "email": "contact@example.com",
+        "url": "https://example.com"
+    },
+    "release_date": "2026-07-15",
+    "g7_version": ">=7.0.0",
+    "dependencies": {
+        "modules": {},
+        "plugins": {}
+    },
+    "assets": {
+        "css": ["dist/css/components.css"],
+        "js": ["dist/js/components.iife.js"],
+        "fonts": [],
+        "images": []
+    },
+    "components": {
+        "basic": [
+            "div", "button", "h1", "h2", "h3", "a", "span", "img"
+        ],
+        "composite": [],
+        "layout": []
+    },
+    "error_config": {
+        "layouts": {
+            "401": "errors/401",
+            "403": "errors/403",
+            "404": "errors/404",
+            "500": "errors/500",
+            "503": "errors/503",
+            "maintenance": "errors/maintenance"
+        }
+    },
+    "externals": [
+        {
+            "id": "fontawesome",
+            "type": "style",
+            "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css",
+            "preconnect": "https://cdnjs.cloudflare.com"
+        }
+    ],
+    "features": {
+        "dark_mode": false,
+        "responsive": false,
+        "multi_language": true,
+        "multi_currency": false
+    }
+}
