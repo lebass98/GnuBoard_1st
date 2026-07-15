@@ -1,15 +1,15 @@
 {
-    "identifier": "ijaegwang-custom_template",
-    "vendor": "ijaegwang",
+    "identifier": "lebass-custom_template",
+    "vendor": "lebass",
     "name": {
-        "ko": "이자광 커스텀 템플릿",
-        "en": "Ijaegwang Custom Template"
+        "ko": "LeBass 커스텀 템플릿",
+        "en": "LeBass Custom Template"
     },
     "version": "1.0.2",
     "license": "MIT",
     "description": {
-        "ko": "이자광 사용자의 커스텀 사용자 템플릿 (Basic 복제본)",
-        "en": "Custom user template for Ijaegwang (Clone of Basic template)"
+        "ko": "LeBass 사용자의 커스텀 사용자 템플릿 (Basic 복제본)",
+        "en": "Custom user template for LeBass (Clone of Basic template)"
     },
     "type": "user",
     "locales": [
@@ -17,7 +17,7 @@
         "en"
     ],
     "author": {
-        "name": "ijaegwang",
+        "name": "LeBass",
         "email": "contact@example.com",
         "url": "https://example.com"
     },

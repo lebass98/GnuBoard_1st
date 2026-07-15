@@ -1,7 +1,7 @@
 {
-    "name": "@ijaegwang/custom-template",
+    "name": "@lebass/custom-template",
     "version": "1.0.2",
-    "description": "Ijaegwang Custom Template - 이자광 사용자 커스텀 템플릿",
+    "description": "LeBass Custom Template - LeBass 사용자 커스텀 템플릿",
     "type": "module",
     "main": "dist/components.js",
     "types": "dist/index.d.ts",
