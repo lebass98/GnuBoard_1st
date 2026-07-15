@@ -23,7 +23,7 @@ export default defineConfig({
     // 라이브러리 모드 설정
     lib: {
       entry: path.resolve(__dirname, 'src/index.ts'),
-      name: 'LeBassCustomTemplate', // 전역 변수명 (IIFE 모드용)
+      name: 'LebassCustomTemplate', // 전역 변수명 (IIFE 모드용)
       fileName: 'components',
       formats: ['iife'], // IIFE 포맷만 빌드
     },
