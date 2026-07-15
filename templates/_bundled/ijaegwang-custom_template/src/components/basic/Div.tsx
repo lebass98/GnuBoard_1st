@@ -22,5 +22,3 @@ export const Div = React.forwardRef<HTMLDivElement, DivProps>(({
     </div>
   );
 });
-
-Div.displayName = 'Div';

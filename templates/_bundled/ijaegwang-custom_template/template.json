@@ -5,15 +5,17 @@
         "ko": "이자광 커스텀 템플릿",
         "en": "Ijaegwang Custom Template"
     },
-    "version": "0.1.0",
+    "version": "1.0.2",
     "license": "MIT",
     "description": {
-        "ko": "이자광 사용자의 커스텀 사용자 템플릿",
-        "en": "Custom user template for Ijaegwang"
+        "ko": "이자광 사용자의 커스텀 사용자 템플릿 (Basic 복제본)",
+        "en": "Custom user template for Ijaegwang (Clone of Basic template)"
     },
     "type": "user",
-    "hidden": false,
-    "locales": ["ko", "en"],
+    "locales": [
+        "ko",
+        "en"
+    ],
     "author": {
         "name": "ijaegwang",
         "email": "contact@example.com",
@@ -22,21 +24,94 @@
     "release_date": "2026-07-15",
     "g7_version": ">=7.0.0",
     "dependencies": {
-        "modules": {},
-        "plugins": {}
+        "modules": {
+            "sirsoft-board": ">=1.0.0",
+            "sirsoft-ecommerce": ">=1.0.2",
+            "sirsoft-page": ">=1.0.0"
+        },
+        "plugins": {
+            "sirsoft-daum_postcode": ">=1.0.0"
+        }
     },
     "assets": {
-        "css": ["dist/css/components.css"],
-        "js": ["dist/js/components.iife.js"],
+        "css": [
+            "dist/css/components.css"
+        ],
+        "js": [
+            "dist/js/components.iife.js"
+        ],
         "fonts": [],
         "images": []
     },
     "components": {
         "basic": [
-            "div", "button", "h1", "h2", "h3", "a", "span", "img"
+            "a",
+            "button",
+            "checkbox",
+            "div",
+            "form",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "hr",
+            "icon",
+            "img",
+            "input",
+            "label",
+            "li",
+            "nav",
+            "p",
+            "section",
+            "select",
+            "span",
+            "svg",
+            "table",
+            "tbody",
+            "td",
+            "textarea",
+            "th",
+            "thead",
+            "tr",
+            "ul"
         ],
-        "composite": [],
-        "layout": []
+        "composite": [
+            "header",
+            "footer",
+            "mobile-nav",
+            "product-card",
+            "rich-text-editor",
+            "image-gallery",
+            "quantity-selector",
+            "post-reactions",
+            "social-login-buttons",
+            "file-uploader",
+            "card",
+            "modal",
+            "toast",
+            "pagination",
+            "stat-card",
+            "status-badge",
+            "tab-navigation",
+            "empty-state",
+            "loading-spinner",
+            "breadcrumb",
+            "search-bar",
+            "dropdown"
+        ],
+        "layout": [
+            "container",
+            "flex",
+            "grid",
+            "section"
+        ]
+    },
+    "preview": {
+        "thumbnail": "preview/thumbnail.png",
+        "screenshots": [
+            "preview/screenshot1.png",
+            "preview/screenshot2.png"
+        ]
     },
     "error_config": {
         "layouts": {
@@ -48,18 +123,27 @@
             "maintenance": "errors/maintenance"
         }
     },
+    "features": {
+        "dark_mode": true,
+        "responsive": true,
+        "multi_language": true,
+        "multi_currency": true
+    },
+    "github_url": "https://github.com/gnuboard/g7-template-sirsoft-basic",
+    "github_changelog_url": "https://github.com/gnuboard/g7-template-sirsoft-basic/blob/main/CHANGELOG.md",
     "externals": [
         {
             "id": "fontawesome",
             "type": "style",
             "url": "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css",
             "preconnect": "https://cdnjs.cloudflare.com"
+        },
+        {
+            "id": "pretendard",
+            "type": "webfont",
+            "url": "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css",
+            "preconnect": "https://cdn.jsdelivr.net",
+            "crossorigin": "anonymous"
         }
-    ],
-    "features": {
-        "dark_mode": false,
-        "responsive": false,
-        "multi_language": true,
-        "multi_currency": false
-    }
+    ]
 }

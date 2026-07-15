@@ -1,52 +1,65 @@
 {
-    "user": {
-        "base_layout_title": "Hello User Template",
-        "base_layout_description": "Gnuboard7 learning minimal sample user template",
-        "header": {
-            "home_link": "Hello",
-            "tagline": "Minimal learning sample"
-        },
-        "footer": {
-            "copyright": "© gnuboard7 Hello User Template"
-        },
-        "nav": {
-            "home": "Home"
-        },
-        "home": {
-            "page_title": "Home",
-            "page_description": "Hello user template home",
-            "welcome_title": "Welcome!",
-            "welcome_description": "This is the home page of the learning minimal sample user template.",
-            "memos_title": "Recent Memos",
-            "memos_empty": "No memos to display.",
-            "back_to_home": "Go Home"
-        }
-    },
-    "error": {
-        "back_to_home": "Back to Home",
-        "401": {
-            "title": "Sign in required",
-            "description": "Please sign in to continue."
-        },
-        "403": {
-            "title": "Access denied",
-            "description": "You don't have permission to access this page."
-        },
-        "404": {
-            "title": "Page not found",
-            "description": "The page you're looking for may have moved or no longer exists."
-        },
-        "500": {
-            "title": "Something went wrong",
-            "description": "Please try again in a moment."
-        },
-        "503": {
-            "title": "Temporarily unavailable",
-            "description": "We're updating the service. Please try again soon."
-        },
-        "maintenance": {
-            "title": "Under maintenance",
-            "description": "We're briefly updating things to improve your experience."
-        }
-    }
+  "common": {
+    "$partial": "partial/en/common.json"
+  },
+  "attachment": {
+    "$partial": "partial/en/attachment.json"
+  },
+  "user": {
+    "$partial": "partial/en/user.json"
+  },
+  "nav": {
+    "$partial": "partial/en/nav.json"
+  },
+  "auth": {
+    "$partial": "partial/en/auth.json"
+  },
+  "home": {
+    "$partial": "partial/en/home.json"
+  },
+  "board": {
+    "$partial": "partial/en/board.json"
+  },
+  "shop": {
+    "$partial": "partial/en/shop.json"
+  },
+  "mypage": {
+    "$partial": "partial/en/mypage.json"
+  },
+  "search": {
+    "$partial": "partial/en/search.json"
+  },
+  "policy": {
+    "$partial": "partial/en/policy.json"
+  },
+  "error": {
+    "$partial": "partial/en/error.json"
+  },
+  "upload": {
+    "$partial": "partial/en/upload.json"
+  },
+  "footer": {
+    "$partial": "partial/en/footer.json"
+  },
+  "sirsoft-basic": {
+    "$partial": "partial/en/sirsoft-basic.json"
+  },
+  "userinfo": {
+    "$partial": "partial/en/userinfo.json"
+  },
+  "editor": {
+    "$partial": "partial/en/editor.json"
+  },
+  "countries": {
+    "$partial": "partial/en/countries.json"
+  },
+  "languages": {
+    "$partial": "partial/en/languages.json"
+  },
+  "timezones": {
+    "$partial": "partial/en/timezones.json"
+  },
+  "layout_editor": {
+    "$partial": "partial/en/layout_editor.json"
+  }
 }
