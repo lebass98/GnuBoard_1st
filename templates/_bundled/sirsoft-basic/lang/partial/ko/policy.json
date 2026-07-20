@@ -127,7 +127,7 @@
   "about": {
     "title": "그누보드7 소개",
     "last_modified": "마지막 수정",
-    "welcome_title": "그누보드7에 오신 것을 환영합니다",
+    "welcome_title": "그누보드7에 오신 것을 환영합니다.",
     "welcome_description1": "그누보드7은 Laravel과 React 기반의 오픈소스 CMS 플랫폼입니다.",
     "welcome_description2": "모듈, 플러그인, 템플릿 시스템을 통해 코어 수정 없이 원하는 기능을 자유롭게 확장할 수 있습니다. 소규모 웹사이트부터 대규모 서비스까지, 그누보드7과 함께 빠르고 유연하게 구축하세요.",
     "why_title": "왜 그누보드7인가요?",

@@ -140,7 +140,7 @@ class PageSeeder extends Seeder
     private function getAboutContentKo(): string
     {
         return <<<'HTML'
-<h2 style="font-size: 1.25rem; font-weight: 700; margin-top: 0; margin-bottom: 1rem;">그누보드7에 오신 것을 환영합니다</h2>
+<h2 style="font-size: 1.25rem; font-weight: 700; margin-top: 0; margin-bottom: 1rem;">그누보드7에 오신 것을 환영합니다.</h2>
 <p style="font-size: 1rem; line-height: 1.75; margin-bottom: 1rem;">그누보드7은 Laravel과 React 기반의 오픈소스 CMS 플랫폼입니다.</p>
 <p style="font-size: 1rem; line-height: 1.75; margin-bottom: 1rem;">모듈, 플러그인, 템플릿 시스템을 통해 코어 수정 없이 원하는 기능을 자유롭게 확장할 수 있습니다. 소규모 웹사이트부터 대규모 서비스까지, 그누보드7과 함께 빠르고 유연하게 구축하세요.</p>
 
@@ -151,7 +151,7 @@ class PageSeeder extends Seeder
 
 <h2 style="font-size: 1.25rem; font-weight: 700; margin-top: 2rem; margin-bottom: 1rem;">왜 그누보드7인가요?</h2>
 <p style="font-size: 1rem; line-height: 1.75; margin-bottom: 1rem;">기존 CMS는 기능을 추가하려면 코어를 수정해야 했습니다. 업데이트할 때마다 커스터마이징이 깨지고, 유지보수가 어려워지는 악순환이 반복됩니다.</p>
-<p style="font-size: 1rem; line-height: 1.75; margin-bottom: 1rem;">그누보드7은 이 문제를 해결하기 위해 설계되었습니다.</p>
+<p style="font-size: 1rem; line-height: 1.75;">그누보드7은 이 문제를 해결하기 위해 설계되었습니다.</p>
 <ul style="margin-bottom: 1rem; padding-left: 1.5rem;">
 <li style="margin-bottom: 0.5rem; line-height: 1.75; font-size: 1rem;"><strong>모듈 시스템</strong> — 독립적인 기능 단위로 개발·배포</li>
 <li style="margin-bottom: 0.5rem; line-height: 1.75; font-size: 1rem;"><strong>플러그인 시스템</strong> — 결제, 알림 등 부가 기능 확장</li>
