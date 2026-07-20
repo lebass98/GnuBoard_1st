@@ -21,6 +21,7 @@
     },
     "devDependencies": {
         "@laravel/echo-react": "^2.2.6",
+        "@monaco-editor/react": "^4.7.0",
         "@playwright/test": "^1.49.0",
         "@tailwindcss/vite": "^4.0.0",
         "@testing-library/jest-dom": "^6.9.1",

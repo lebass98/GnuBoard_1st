@@ -26,9 +26,7 @@ const STATE_SPEC_PATHS = [
   'modules/_bundled/sirsoft-ecommerce/editor-spec.json',
   'modules/_bundled/sirsoft-board/editor-spec.json',
   'modules/_bundled/sirsoft-page/editor-spec.json',
-  'plugins/_bundled/sirsoft-pay_nicepayments/editor-spec.json',
   'plugins/_bundled/sirsoft-pay_kginicis/editor-spec.json',
-  'plugins/_bundled/sirsoft-pay_nhnkcp/editor-spec.json',
   'plugins/_bundled/sirsoft-verification_kginicis/editor-spec.json',
   'plugins/_bundled/sirsoft-gdpr/editor-spec.json',
 ];
